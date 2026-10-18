@@ -1,0 +1,74 @@
+/* Bloquinho: design tokens. Toda cor, tamanho e espaço do app sai daqui. Regras de uso em DESIGN.md. */
+:root{
+  color-scheme:light;
+
+  /* cor: papel e tinta */
+  --paper:#fbfcf7;      /* folha pautada */
+  --card:#ffffff;       /* cartão colado na folha */
+  --desk:#d8dde5;       /* mesa atrás do caderno */
+  --rule:#c3d8ef;       /* pauta azul */
+  --margin:#f0959b;     /* margem vermelha */
+  --wire:#8a92a2;       /* espiral */
+  --ink:#213f95;        /* caneta azul: texto corrido */
+  --marker:#1b1c21;     /* canetão: títulos, contornos, números */
+  --pencil:#646b7d;     /* lápis: legendas e notas */
+  --red:#cf2f3b;        /* caneta vermelha: correção, perigo, destaque */
+  --ok:#2f9a4c;
+
+  /* marca-texto (sempre com texto --on-hl por cima) */
+  --hl-y:#fff25e; --hl-g:#aef07f; --hl-p:#ffa6d3;
+  --under:#fff25e;      /* grifo embaixo de títulos */
+  --on-hl:#1b1c21;
+  --postit:#ffe66d; --fold:#e3c341;
+  --tape:rgba(212,200,158,.62);
+  --drop:#1b1c21;       /* sombra de desenho animado */
+
+  /* semântica do veredito e do progresso */
+  --up:var(--hl-g); --keep:var(--hl-y); --down:var(--hl-p);
+
+  /* tipografia */
+  --font-display:"Permanent Marker","Marker Felt","Chalkboard SE","Comic Sans MS",cursive;
+  --font-hand:"Kalam","Bradley Hand","Chalkboard SE","Segoe Print","Comic Sans MS",cursive;
+  --fs-xs:.72rem; --fs-sm:.86rem; --fs-md:1rem; --fs-lg:1.2rem; --fs-xl:1.5rem;
+  --fs-2xl:1.9rem; --fs-3xl:2.5rem; --fs-hero:3.6rem; --fs-timer:5.6rem;
+  --lh-tight:1.12; --lh-body:1.42;
+  --track-label:.09em;
+
+  /* espaço: a pauta (32px) é a unidade maior */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px;
+  --line:32px; --mx:26px;
+
+  /* forma */
+  --bw-thin:1.5px; --bw:2px; --bw-thick:2.5px;
+  --r-a:255px 14px 225px 14px/14px 225px 14px 255px;   /* contorno à mão, variação A */
+  --r-b:14px 225px 14px 255px/255px 14px 225px 14px;   /* contorno à mão, variação B */
+  --r-sm:6px; --r-hl:3px 9px 4px 10px;
+  --sh-1:2px 2px 0 var(--drop); --sh-2:3px 3px 0 var(--drop); --sh-3:4px 5px 0 var(--drop);
+  --tilt-a:-.6deg; --tilt-b:.5deg; --tilt-label:-2deg;
+
+  /* movimento */
+  --dur-fast:120ms; --dur:250ms; --dur-draw:750ms;
+  --ease-out:cubic-bezier(.2,.8,.2,1); --ease-draw:cubic-bezier(.65,0,.35,1);
+
+  /* camadas */
+  --z-draw:3; --z-sheet:50; --z-toast:60;
+}
+
+/* modo escuro: caderno preto com caneta gel */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --paper:#16181e; --card:#1e2129; --desk:#0b0c10; --rule:#232d44; --margin:#5e2a33; --wire:#5d6475;
+    --ink:#a8c3ff; --marker:#f0eee8; --pencil:#8f96a8; --red:#ff6f78; --ok:#5fcf7d;
+    --hl-y:#eadc52; --hl-g:#8bd963; --hl-p:#f088c2; --under:rgba(234,220,82,.38); --on-hl:#15161b;
+    --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#16181e; --card:#1e2129; --desk:#0b0c10; --rule:#232d44; --margin:#5e2a33; --wire:#5d6475;
+  --ink:#a8c3ff; --marker:#f0eee8; --pencil:#8f96a8; --red:#ff6f78; --ok:#5fcf7d;
+  --hl-y:#eadc52; --hl-g:#8bd963; --hl-p:#f088c2; --under:rgba(234,220,82,.38); --on-hl:#15161b;
+  --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000;
+}
+@media (min-width:600px){ :root{ --mx:40px; } }
