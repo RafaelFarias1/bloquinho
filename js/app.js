@@ -1,6 +1,8 @@
-/* Bloquinho: app sem build. Os dados ficam no localStorage do aparelho. */
+/* Bloquinho: app sem build. Os dados ficam no localStorage do aparelho.
+   Animações em fx.js (window.FX). */
 (() => {
 'use strict';
+const FX = window.FX;
 
 /* =========================================================
    Técnicas
@@ -24,6 +26,9 @@ const TECH = {
   }
 };
 const LIMITS = { blocks: [2, 10], reps: [1, 20], rest: [3, 180], goal: [3, 200] };
+const spec = c => c.mode === 'count'
+  ? `${c.blocks} blocos até a falha · ${c.rest} s de descanso · meta de ${c.goal} reps`
+  : `${c.blocks} blocos × ${c.reps} reps · ${c.rest} s de descanso`;
 
 /* =========================================================
    Utilidades
@@ -37,24 +42,25 @@ const fmt = n => n == null || n === '' ? '—' : Number(n).toLocaleString('pt-BR
 const fmtDate = ts => new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 const fmtDay = k => k ? `${k.slice(8, 10)}/${k.slice(5, 7)}` : '';
 const fmtLong = d => d.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+const fmtTime = ts => new Date(ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const sameDay = ts => dayKey(new Date(ts)) === dayKey();
 const sign = n => n > 0 ? '+' : n < 0 ? '−' : '';
 const fmtPct = p => { const a = Math.abs(p * 100); return sign(p) + (a < 10 ? a.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : Math.round(a).toLocaleString('pt-BR')) + '%'; };
 const fmtSigned = (n, unit = '') => sign(n) + fmt(Math.abs(n)) + unit;
 const parseNum = v => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : null; };
-const rand = k => { const x = Math.sin(k * 12.9898) * 43758.5453; return x - Math.floor(x); };
-const reduceMotion = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
 
 /* =========================================================
    Estado e persistência
    ========================================================= */
 const LS = 'bloquinho:v1', LS_RUN = 'bloquinho:run', LS_INSTALL = 'bloquinho:install-seen';
-const S = { workouts: [], logs: [], settings: { sound: true, voice: true, hideHow: false }, seeded: false };
+const S = { workouts: [], logs: [], sessions: [], settings: { sound: true, voice: true, hideHow: false }, seeded: false };
 let view = { name: 'home' };
 let run = null;
 let armed = null, armedAt = 0, armedTimer = null;
 let focusAfter = null;
 let afterRender = [];
-const fresh = { w: null, ex: new Set() };   // o que acabou de ser criado, pra animar
+let busy = false;                                        // enquanto a borracha trabalha
+const fresh = { w: null, ex: new Set(), done: null, closed: false };   // o que acabou de acontecer, pra animar
 
 function lsLoad() {
   try {
@@ -62,13 +68,15 @@ function lsLoad() {
     if (!d) return;
     S.workouts = d.workouts || [];
     S.logs = (d.logs || []).sort((a, b) => a.ts - b.ts);
+    S.sessions = d.sessions || [];
     S.settings = { ...S.settings, ...(d.settings || {}) };
     S.seeded = !!d.seeded;
+    migrateSessions();
   } catch (e) {}
 }
 let persistAsked = false;
 function lsSave() {
-  try { localStorage.setItem(LS, JSON.stringify({ workouts: S.workouts, logs: S.logs, settings: S.settings, seeded: S.seeded })); }
+  try { localStorage.setItem(LS, JSON.stringify({ workouts: S.workouts, logs: S.logs, sessions: S.sessions, settings: S.settings, seeded: S.seeded })); }
   catch (e) { toast('Não deu pra salvar no aparelho. Confere se o navegador não tá em aba anônima.'); }
   if (!persistAsked) { persistAsked = true; try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) {} }
 }
@@ -91,6 +99,52 @@ const logsOf = eid => S.logs.filter(l => l.eid === eid);
 const lastLog = eid => logsOf(eid).at(-1);
 const cfgOf = e => { const T = TECH[e.tech]; return { tech: e.tech, mode: T.mode, lastMax: T.lastMax, blocks: e.blocks, reps: e.reps || 4, rest: e.rest, goal: e.goal || T.goal }; };
 const touchWorkout = w => { if (w && w.example) w.example = false; };
+
+/* =========================================================
+   Rodadas de treino
+   Uma rodada começa quando você toca pra fazer o treino e fecha quando
+   todos os exercícios forem anotados, quando você encerra, ou depois de
+   6 horas parada. Fechada, ela fica na tela até você começar outra.
+   ========================================================= */
+const IDLE = 6 * 3600e3;
+const sessLogs = sid => S.logs.filter(l => l.sid === sid);
+const lastActivity = s => Math.max(s.startedAt, ...sessLogs(s.id).map(l => l.ts));
+const isComplete = (w, s) => w.exercises.length > 0 && w.exercises.every(e => S.logs.some(l => l.sid === s.id && l.eid === e.id));
+const openSession = wid => S.sessions.find(s => s.wid === wid && !s.closedAt);
+const sessionsOf = wid => S.sessions.filter(s => s.wid === wid && sessLogs(s.id).length).sort((a, b) => a.startedAt - b.startedAt);
+const shownSession = wid => openSession(wid) || sessionsOf(wid).at(-1) || null;
+/* registros antigos (de antes das rodadas) viram uma rodada por treino e por dia */
+function migrateSessions() {
+  const known = new Set(S.sessions.map(s => s.id));
+  for (const l of S.logs) {
+    if (!l.sid) l.sid = `d-${l.wid}-${l.day}`;
+    if (!known.has(l.sid)) {
+      known.add(l.sid);
+      S.sessions.push({ id: l.sid, wid: l.wid, startedAt: l.ts, closedAt: null });
+    }
+  }
+  tidySessions();
+}
+function tidySessions() {
+  const now = Date.now();
+  let changed = false;
+  for (const s of S.sessions) {
+    if (s.closedAt) continue;
+    const w = getW(s.wid), n = sessLogs(s.id).length;
+    if (!w || (n && isComplete(w, s)) || now - lastActivity(s) > IDLE) { s.closedAt = lastActivity(s); changed = true; }
+  }
+  const before = S.sessions.length;
+  S.sessions = S.sessions.filter(s => !s.closedAt || sessLogs(s.id).length);   // rodada fechada sem nada anotado some
+  return changed || before !== S.sessions.length;
+}
+function startSession(wid) {
+  let s = openSession(wid), isNew = false;
+  if (!s) { s = { id: newId(), wid, startedAt: Date.now(), closedAt: null }; S.sessions.push(s); isNew = true; saveCaderno(); }
+  return { s, isNew };
+}
+function dropIfEmpty(sid) {
+  if (!sessLogs(sid).length) { S.sessions = S.sessions.filter(s => s.id !== sid); saveCaderno(); }
+}
 
 /* =========================================================
    Progressão de carga (veredito)
@@ -147,12 +201,12 @@ function verdictCopy(cfg, ev, reps) {
 }
 function planFor(e) {
   const last = lastLog(e.id), T = TECH[e.tech];
-  if (!last) return { load: null, html: `Primeira vez nesse exercício: ${T.first}.` };
+  if (!last) return { load: null, html: `Primeira vez: ${T.first}.` };
   const when = fmtDate(last.ts);
   if (last.verdict === 'up') return { load: last.next ?? last.load, html: `Em ${when} você fechou tudo com ${fmt(last.load)} kg. <b>Hoje: ${fmt(last.next ?? last.load)} kg.</b>` };
   if (last.verdict === 'down') return { load: last.next ?? last.load, html: `Em ${when} ficou pesado com ${fmt(last.load)} kg. <b>Hoje: uns ${fmt(last.next ?? last.load)} kg.</b>` };
   if (last.cfg?.mode === 'count') return { load: last.load, html: `Em ${when}: ${last.total} reps com ${fmt(last.load)} kg. <b>Hoje: mesma carga, tenta ${last.total + 1} ou mais.</b>` };
-  return { load: last.load, html: `Em ${when} você falhou no ${last.failBlock}º bloco com ${fmt(last.load)} kg (${last.total} reps). <b>Hoje: mesma carga, tenta passar do ${last.failBlock}º.</b>` };
+  return { load: last.load, html: `Em ${when} você falhou no ${last.failBlock}º bloco com ${fmt(last.load)} kg. <b>Hoje: mesma carga, tenta passar do ${last.failBlock}º.</b>` };
 }
 
 /* =========================================================
@@ -165,30 +219,32 @@ function exDelta(now, prev) {
   const nv = vol(now), pv = vol(prev);
   return { nv, pv, dLoad: (now.load || 0) - (prev.load || 0), dReps: (now.total || 0) - (prev.total || 0), pct: pv ? (nv - pv) / pv : 0 };
 }
-function sessionCompare(w, day) {
-  const dayLogs = S.logs.filter(l => l.wid === w.id && l.day === day);
-  if (!dayLogs.length) return null;
+/* compara uma rodada com as anteriores do mesmo treino, exercício por exercício */
+function sessionCompare(w, s) {
+  const logs = s ? sessLogs(s.id) : [];
+  if (!logs.length) return null;
   const latest = new Map();
-  for (const l of dayLogs) latest.set(l.eid, l);
-  const before = S.logs.filter(l => l.wid === w.id && l.day < day).map(l => l.day).sort();
+  for (const l of logs) latest.set(l.eid, l);
+  const earlier = sessionsOf(w.id).filter(x => x.id !== s.id && x.startedAt < s.startedAt);
+  const ids = new Set(earlier.map(x => x.id));
   const rows = [...latest.values()].map(t => {
-    const p = S.logs.filter(l => l.eid === t.eid && l.day < day).at(-1);
+    const p = S.logs.filter(l => l.eid === t.eid && ids.has(l.sid)).at(-1);
     return { t, p, d: p ? exDelta(t, p) : null };
   });
   const cmp = rows.filter(r => r.p);
   const nv = cmp.reduce((a, r) => a + r.d.nv, 0), pv = cmp.reduce((a, r) => a + r.d.pv, 0);
-  return { day, prevDay: before.at(-1) || null, rows, compared: cmp.length, pct: pv ? (nv - pv) / pv : null };
+  const prev = earlier.at(-1);
+  return { prevTs: prev ? prev.startedAt : null, rows, compared: cmp.length, pct: pv ? (nv - pv) / pv : null };
 }
 function progressSay(cmp) {
-  if (cmp.pct == null) return 'Primeiro registro desse treino. Na próxima vez eu comparo com hoje.';
-  const ref = cmp.prevDay ? `treino de ${fmtDay(cmp.prevDay)}` : 'último treino';
+  if (cmp.pct == null) return 'Primeiro registro desse treino. Na próxima vez eu comparo com este.';
+  const ref = cmp.prevTs ? `treino de ${fmtDate(cmp.prevTs)}` : 'último treino';
   const d = dirOf(cmp.pct);
   if (d === 'up') return `Você progrediu <span class="circled">${fmtPct(cmp.pct)}${ICON.ring}</span> em relação ao ${ref}.`;
   if (d === 'down') return `Ficou ${fmtPct(cmp.pct).slice(1)} abaixo do ${ref}. Normal oscilar (sono, comida, estresse). Foco no próximo.`;
   return `Mesmo volume do ${ref}. No próximo, busca 1 rep a mais.`;
 }
-const deltaChip = p => { const d = dirOf(p); return `<span class="delta delta--${d}">${d === 'keep' ? 'igual' : fmtPct(p)}</span>`; };
-const deltaNum = (n, unit = '') => { const d = n > 0 ? 'up' : n < 0 ? 'down' : 'keep'; return `<span class="delta delta--${d}">${n ? fmtSigned(n, unit) : 'igual'}</span>`; };
+const deltaChip = (p, sm = '') => { const d = dirOf(p); return `<span class="delta delta--${d}${sm}">${d === 'keep' ? 'igual' : fmtPct(p)}</span>`; };
 const loadPair = (a, b) => a === b ? fmt(b) : `${fmt(a)}→${fmt(b)}`;
 
 /* =========================================================
@@ -256,7 +312,7 @@ function restoreRun() {
   try {
     const d = JSON.parse(localStorage.getItem(LS_RUN) || 'null');
     if (!d || Date.now() - d.savedAt > 3 * 3600e3 || d.phase === 'ready' || !getE(d.wid, d.eid)) { clearRunDraft(); return; }
-    run = { ...d, animIdx: -1 };
+    run = { ...d, animIdx: -1, slap: false, fresh: false };
     if (run.phase === 'rest' && Date.now() >= run.restEnd) run.phase = 'work';
     view = { name: 'run', wid: run.wid };
   } catch (e) {}
@@ -291,27 +347,27 @@ function startRest() {
 function endRest() {
   stopTick();
   const cfg = cfgOf(curEx()); const n = run.reps.length + 1;
-  setPhase('work');
+  setPhase('work'); run.slap = true;
   cue('go', n, n === cfg.blocks && (cfg.lastMax || cfg.mode === 'count'));
   saveRunDraft(); render();
 }
 function finish() {
-  stopTick(); setPhase('done'); run.ask = null;
+  stopTick(); setPhase('done'); run.ask = null; run.fresh = true;
   cue('done'); saveRunDraft(); render(); window.scrollTo(0, 0);
 }
 function pushBlock(v) { run.reps.push(v); run.animIdx = run.reps.length - 1; }
 
 /* =========================================================
-   Ícones e desenhos
+   Ícones
    ========================================================= */
-const PENCIL = '<g transform="rotate(35)" stroke="#1b1c21" stroke-width="1.6" stroke-linejoin="round"><rect x="-5" y="-57" width="10" height="7" rx="2" fill="#ff9fb3"/><rect x="-5" y="-50" width="10" height="6" fill="#b9bdc7"/><rect x="-5" y="-44" width="10" height="32" fill="#ffcf3f"/><path d="M-1.6 -44V-12M1.6 -44V-12" stroke-width="1" opacity=".3"/><path d="M-5 -12H5L0 0Z" fill="#f1d3a6"/><path d="M-1.9 -4.6H1.9L0 0Z" fill="#2b2c33" stroke="none"/></g>';
-const PEN = `<span class="field-pen" aria-hidden="true"><svg viewBox="-3 -52 42 54">${PENCIL}</svg></span>`;
+const PEN = `<span class="field-pen" aria-hidden="true"><svg viewBox="-3 -52 42 54">${FX.PENCIL}</svg></span>`;
 const ICON = {
   play: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5 19 12 7 19.5Z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>',
-  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.5 9 18.5 21 3.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path pathLength="1" d="M3.5 12.5 9 18.5 21 3.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   sound: on => `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.5h3.6L12 5.4v13.2l-4.9-4.1H3.5z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>${on
     ? '<path d="M15.4 9c1.3 1.7 1.3 4.3 0 6M18.2 6.3c2.6 3.2 2.6 8.2 0 11.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>'
     : '<path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>'}</svg>`,
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 20.5h17"/><path d="M5 16.5 9.5 11l3.5 3 6-7.5"/></svg>',
   circle: '<svg class="circ" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path vector-effect="non-scaling-stroke" d="M50 5C80 3 97 25 96 51 95 79 73 97 47 95 20 93 3 74 5 47 7 21 29 6 60 9"/></svg>',
   ring: '<svg class="circ" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path pathLength="1" d="M52 6C82 4 98 26 97 51 96 79 73 96 47 95 19 94 3 74 4 47 6 21 30 5 63 10"/></svg>',
   scrib: '<svg class="scrib" viewBox="0 0 220 12" preserveAspectRatio="none" aria-hidden="true"><path d="M3 8C40 2 78 11 118 6S188 3 217 7"/></svg>',
@@ -320,95 +376,7 @@ const ICON = {
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>',
   dots: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>'
 };
-function tally(n, ghost = 0, seed = 1, anim = false) {
-  const total = n + ghost;
-  if (!total) return '<svg class="t" viewBox="0 0 30 26" aria-hidden="true"></svg>';
-  const groups = Math.ceil(total / 5), W = Math.max(30, groups * 30 - 4);
-  let s = '';
-  for (let i = 0; i < total; i++) {
-    const g = Math.floor(i / 5), p = i % 5, solid = i < n;
-    const j = k => (rand(seed * 31 + i * 7 + k) * 2 - 1);
-    const cls = solid ? (anim ? 's a' : 's') : 'g';
-    const st = solid && anim ? ` style="--d:${i * 70}ms"` : '';
-    const d = p < 4
-      ? `M${(4 + g * 30 + p * 6.2 + j(1) * 0.8).toFixed(1)} ${(3.5 + j(2)).toFixed(1)}L${(4 + g * 30 + p * 6.2 + j(3) * 1.4).toFixed(1)} ${(22.5 + j(4)).toFixed(1)}`
-      : `M${g * 30 + 0.5} ${(18 + j(5)).toFixed(1)}L${g * 30 + 25.5} ${(7 + j(6)).toFixed(1)}`;
-    s += `<path class="${cls}"${st} pathLength="1" d="${d}"/>`;
-  }
-  return `<svg class="t" viewBox="0 0 ${W} 26" aria-hidden="true">${s}</svg>`;
-}
-
-/* =========================================================
-   Animações de desenho
-   ========================================================= */
-const NS = 'http://www.w3.org/2000/svg';
-function roughRect(w, h, s) {
-  const j = k => (rand(s + k) - 0.5) * 4;
-  const p = (x, y) => `${x.toFixed(1)} ${y.toFixed(1)}`;
-  return `M${p(8 + j(1), 1 + j(2))}`
-    + `C${p(w * 0.35, -1 + j(3))} ${p(w * 0.7, 2 + j(4))} ${p(w - 3 + j(5), 1 + j(6))}`
-    + `C${p(w + 1 + j(7), h * 0.35)} ${p(w - 1 + j(8), h * 0.7)} ${p(w + j(9), h - 2 + j(10))}`
-    + `C${p(w * 0.65, h + 1 + j(11))} ${p(w * 0.3, h - 1 + j(12))} ${p(2 + j(13), h + j(14))}`
-    + `C${p(-1 + j(15), h * 0.65)} ${p(1 + j(16), h * 0.3)} ${p(j(17), 6 + j(18))}`
-    + `Q${p(1, 0)} ${p(22 + j(19), -2 + j(20))}`;
-}
-/* Um lápis contorna o cartão e o conteúdo aparece como se fosse escrito. */
-function drawIn(el, { delay = 0, dur = 750 } = {}) {
-  if (!el || reduceMotion() || el.querySelector(':scope > .draw-svg')) return;
-  const w = el.offsetWidth, h = el.offsetHeight;
-  if (!w || !h) return;
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'draw-svg'); svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('viewBox', `-12 -12 ${w + 24} ${h + 24}`);
-  const path = document.createElementNS(NS, 'path');
-  path.setAttribute('class', 'draw-line'); path.setAttribute('d', roughRect(w, h, Math.random() * 1000));
-  const pen = document.createElementNS(NS, 'g');
-  pen.setAttribute('class', 'pencil'); pen.innerHTML = `<g transform="scale(.8)">${PENCIL}</g>`;
-  svg.append(path, pen);
-  el.classList.add('is-drawing');
-  el.append(svg);
-  const len = path.getTotalLength();
-  path.style.strokeDasharray = `${len} ${len}`; path.style.strokeDashoffset = len;
-  const ease = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-  const start = performance.now() + delay;
-  const step = now => {
-    const t = clamp((now - start) / dur, 0, 1), e = ease(t);
-    path.style.strokeDashoffset = len * (1 - e);
-    const pt = path.getPointAtLength(len * e);
-    pen.setAttribute('transform', `translate(${pt.x.toFixed(1)} ${pt.y.toFixed(1)})`);
-    if (t > 0.4) el.classList.add('is-revealing');
-    if (t < 1) { requestAnimationFrame(step); return; }
-    pen.classList.add('lift');
-    setTimeout(() => { svg.classList.add('fade'); el.classList.remove('is-drawing', 'is-revealing'); }, 180);
-    setTimeout(() => svg.remove(), 520);
-  };
-  requestAnimationFrame(step);
-}
-/* Linhas de texto aparecem da esquerda pra direita, uma depois da outra. */
-function writeIn(els) {
-  if (reduceMotion()) return;
-  els.forEach((el, i) => {
-    el.style.animationDelay = `${i * 110}ms`;
-    el.classList.add('write-in');
-    el.addEventListener('animationend', () => { el.classList.remove('write-in'); el.style.animationDelay = ''; }, { once: true });
-  });
-}
-function lineIn(el) {
-  if (!el || reduceMotion()) return;
-  el.classList.add('line-in');
-  setTimeout(() => el.classList.remove('line-in'), 900);
-}
-/* O lápis do campo acompanha o fim do texto e rabisca a cada letra. */
-const measure = document.createElement('canvas').getContext('2d');
-function penFollow(input, scribble) {
-  const pen = input.closest('.field-wrap')?.querySelector('.field-pen');
-  if (!pen) return;
-  const cs = getComputedStyle(input);
-  measure.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  const x = Math.min(measure.measureText(input.value || '').width + (parseFloat(cs.paddingLeft) || 0), input.clientWidth - 8);
-  pen.style.setProperty('--x', `${Math.max(0, x)}px`);
-  if (scribble && !reduceMotion()) { pen.classList.remove('scribble'); void pen.offsetWidth; pen.classList.add('scribble'); }
-}
+const tally = FX.tally;
 
 /* =========================================================
    Instalar na tela do celular
@@ -426,8 +394,7 @@ function viewInstall() {
       <li><span class="ibadge">${ICON.plus}</span><span>Rola a lista e toca em <b>Adicionar à Tela de Início</b>.</span></li>
       <li><span class="ibadge">${ICON.check}</span><span>Toca em <b>Adicionar</b>. O Bloquinho aparece junto dos seus apps.</span></li>
     </ol>
-    <p class="t-note">Abriu pelo WhatsApp ou Instagram? Abre no Safari primeiro (no menu, “Abrir no Safari”).</p>
-    <p class="t-note">Depois, usa sempre pelo ícone: o que você anota fica guardado nele.</p>`;
+    <p class="t-note">Abriu pelo WhatsApp ou Instagram? Abre no Safari primeiro (no menu, “Abrir no Safari”). Depois, usa sempre pelo ícone: o que você anota fica guardado nele.</p>`;
   else if (isAndroid && deferredPrompt) body = `
     <button class="btn btn--go btn--wide btn--xl" data-a="install-go">${ICON.plus}<span>Instalar o Bloquinho</span></button>`;
   else if (isAndroid) body = `
@@ -439,7 +406,7 @@ function viewInstall() {
   else body = `
     <p>O Bloquinho foi feito pro celular. Abre este endereço no navegador do celular e ele mostra o passo a passo:</p>
     <p class="iurl">${esc(location.host || '')}</p>
-    ${deferredPrompt ? `<button class="btn btn--wide" data-a="install-go">Instalar neste computador</button>` : ''}`;
+    ${deferredPrompt ? '<button class="btn btn--wide" data-a="install-go">Instalar neste computador</button>' : ''}`;
   return `<div class="backdrop" data-a="install-close">
     <div class="card bsheet" role="dialog" aria-modal="true" aria-labelledby="instT" data-a="noop">
       <div class="ihead"><img class="logo" src="/logo.svg" alt="" width="52" height="52"><h2 id="instT">Põe o Bloquinho na tela do celular</h2></div>
@@ -465,89 +432,107 @@ function viewHome() {
     <div class="brand"><img class="logo" src="/logo.svg" alt="" width="56" height="56"><div><h1 class="t-hero">Bloquinho</h1>${ICON.scrib}</div></div>
     <p class="t-note">caderno de técnicas avançadas</p>
   </header>
-  ${how ? `<section class="card card--b card--tilt-b how" aria-label="Como funciona">
-    <span class="tape" aria-hidden="true"></span>
+  ${how ? `<section class="card card--flat how" aria-label="Como funciona">
     <ol class="how-list">
-      <li><b>Monta o treino</b> e escolhe a técnica de cada exercício.</li>
-      <li><b>Deixa o celular na sua frente</b> e toca no post-it a cada bloco. O app conta o descanso e avisa com bipe e voz (de fone, fica no ouvido).</li>
-      <li><b>No fim da série</b> ele diz se sobe, mantém ou baixa a carga, e quanto você progrediu desde o último treino.</li>
+      <li>Monta o treino e escolhe a técnica.</li>
+      <li>Na série, toca no post-it a cada bloco. O app conta o descanso.</li>
+      <li>No fim, ele diz se sobe a carga e quanto você progrediu.</li>
     </ol>
-    <div class="how-foot"><button class="link" data-a="hide-how">entendi, esconder</button></div>
+    <button class="link how-ok" data-a="hide-how">entendi</button>
   </section>` : ''}
   <h2 class="t-section"><span class="under">Meus treinos</span></h2>
   <div class="cards">${S.workouts.map(wcard).join('') || '<p class="t-muted">Nenhum treino ainda. Cria o primeiro aqui embaixo.</p>'}</div>
   <button class="btn btn--ghost btn--wide add-w" data-a="new-w">+ novo treino</button>
-  <h2 class="t-section"><span class="under">Cola das técnicas</span></h2>
-  <div class="cola">${Object.values(TECH).map(T => `<div><h3><span class="hl" style="--c:var(${T.color})">${T.name}</span></h3><p>${T.rule({ blocks: T.blocks, reps: T.reps, rest: T.rest, goal: T.goal })}</p></div>`).join('')}</div>
+  <details class="cola">
+    <summary class="t-section"><span class="under">Cola das técnicas</span></summary>
+    <div class="cola-grid">${Object.values(TECH).map(T => `<div><h3><span class="hl" style="--c:var(${T.color})">${T.name}</span></h3><p>${T.rule({ blocks: T.blocks, reps: T.reps, rest: T.rest, goal: T.goal })}</p></div>`).join('')}</div>
+  </details>
   <footer class="foot">
-    ${isStandalone() ? '' : `<button class="btn btn--ghost btn--wide" data-a="install">${ICON.phone}<span>Pôr o Bloquinho na tela do celular</span></button>`}
+    ${isStandalone() ? '' : `<button class="btn btn--ghost btn--wide" data-a="install">${ICON.phone}<span>Pôr na tela do celular</span></button>`}
     <div class="toggles">
-      <button class="toggle" data-a="set" data-k="sound" aria-pressed="${!!S.settings.sound}"><span class="toggle-box">${S.settings.sound ? ICON.check : ''}</span>bipe na contagem</button>
+      <button class="toggle" data-a="set" data-k="sound" aria-pressed="${!!S.settings.sound}"><span class="toggle-box">${S.settings.sound ? ICON.check : ''}</span>bipe</button>
       <button class="toggle" data-a="set" data-k="voice" aria-pressed="${!!S.settings.voice}"><span class="toggle-box">${S.settings.voice ? ICON.check : ''}</span>voz (“bloco 3, vai!”)</button>
     </div>
-    <p>No iPhone, tira do modo silencioso pra ouvir os avisos.</p>
-    <p class="sync"><span class="dot"></span>Seus treinos ficam salvos neste aparelho.</p>
+    <p class="t-note">Seus treinos ficam salvos neste aparelho. No iPhone, tira do modo silencioso pra ouvir os avisos.</p>
   </footer>`;
 }
 function wcard(w) {
-  const days = [...new Set(S.logs.filter(l => l.wid === w.id).map(l => l.day))].sort();
-  const last = days.at(-1);
-  const cmp = last ? sessionCompare(w, last) : null;
-  const n = w.exercises.length;
-  return `<button class="card card--tilt-a wcard" id="wc-${w.id}" data-a="open-w" data-w="${w.id}">
-    <span class="tape" aria-hidden="true"></span>
-    <span class="wcard-head"><span class="t-card">${esc(w.name || 'Treino sem nome')}</span>${w.example ? '<span class="chip chip--example">exemplo · edita à vontade</span>' : ''}</span>
-    <span class="wcard-list">${w.exercises.map(e => `<span class="wcard-ex"><span>${esc(e.name || 'Exercício sem nome')}</span><span class="chip">${TECH[e.tech].name}</span></span>`).join('') || '<span class="wcard-ex t-muted">sem exercícios ainda</span>'}</span>
-    <span class="wcard-meta"><span>${n} exercício${n === 1 ? '' : 's'} · ${last ? `último treino em ${fmtDay(last)}` : 'ainda não feito'}</span>${cmp && cmp.pct != null ? deltaChip(cmp.pct) : ''}</span>
+  const s = shownSession(w.id), going = s && !s.closedAt;
+  const done = sessionsOf(w.id).at(-1);
+  const cmp = done ? sessionCompare(w, done) : null;
+  const techs = [...new Set(w.exercises.map(e => TECH[e.tech].name))];
+  const when = going ? '<span class="hl" style="--c:var(--hl-y)">em andamento</span>' : done ? `último: ${fmtDate(done.startedAt)}` : 'ainda não feito';
+  return `<button class="card hand wcard" id="wc-${w.id}" data-a="open-w" data-w="${w.id}" style="${FX.hand(w.id)}">
+    ${FX.tapes(w.id)}
+    <span class="wcard-head"><span class="t-card">${esc(w.name || 'Treino sem nome')}</span>${w.example ? '<span class="chip chip--example">exemplo</span>' : ''}</span>
+    <span class="wcard-list">${w.exercises.map(e => `<span>${esc(e.name || 'Exercício sem nome')}</span>`).join('') || '<span class="t-muted">sem exercícios ainda</span>'}</span>
+    <span class="wcard-meta"><span>${techs.join(' + ') || 'vazio'} · ${when}</span>${!going && cmp && cmp.pct != null ? deltaChip(cmp.pct) : ''}</span>
   </button>`;
 }
-const vmini = v => `<span class="delta delta--${v}">${VWORD[v]}</span>`;
 function viewWorkout() {
   const w = getW(view.wid);
   if (!w) { view = { name: 'home' }; return viewHome(); }
   if (view.edit) return viewEdit(w);
-  const today = dayKey();
-  const items = w.exercises.map(e => ({ e, today: logsOf(e.id).filter(l => l.day === today).at(-1), last: lastLog(e.id) }));
-  const next = items.find(i => !i.today);
-  const doneN = items.filter(i => i.today).length;
-  const allDone = w.exercises.length > 0 && !next;
-  const cmp = doneN ? sessionCompare(w, today) : null;
+  if (tidySessions()) lsSave();
+  // a tela mostra a rodada aberta ou, se não tiver, a última que foi feita
+  const s = shownSession(w.id), going = !!(s && !s.closedAt);
+  const items = w.exercises.map(e => ({ e, done: s ? sessLogs(s.id).filter(l => l.eid === e.id).at(-1) : null, last: lastLog(e.id) }));
+  const doneN = items.filter(i => i.done).length;
+  const next = going ? items.find(i => !i.done) : null;
+  const complete = !!(s && s.closedAt && isComplete(w, s));
+  const cmp = s && doneN ? sessionCompare(w, s) : null;
+  const first = w.exercises[0];
+  let sub, top = '';
+  if (going) {
+    sub = `começou ${sameDay(s.startedAt) ? 'hoje' : 'em ' + fmtDate(s.startedAt)} às ${fmtTime(s.startedAt)} · ${doneN} de ${w.exercises.length} feitos`;
+    if (next) top = `<button class="btn btn--go btn--wide btn--xl go-next" data-a="run" data-e="${next.e.id}">${ICON.play}<span>${doneN ? 'Próximo' : 'Primeiro'}: ${esc(next.e.name || 'exercício')}</span></button>`;
+  } else if (s) {
+    sub = `${complete ? 'feito' : `${doneN} de ${w.exercises.length} feitos`} ${sameDay(s.startedAt) ? 'hoje' : 'em ' + fmtLong(new Date(s.startedAt))}`;
+    top = `${complete ? `<p class="alldone"><span class="hl${fresh.closed ? ' hl--swipe' : ''}" style="--c:var(--up)">Treino fechado!</span></p>` : ''}
+      ${cmp ? compareCard(w, cmp, true, s) : ''}
+      ${first ? `<button class="btn btn--go btn--wide btn--xl go-next" data-a="start-w">${ICON.play}<span>Começar treino de novo</span></button>` : ''}`;
+  } else {
+    sub = 'ainda não feito';
+    if (first) top = `<button class="btn btn--go btn--wide btn--xl go-next" data-a="start-w">${ICON.play}<span>Começar treino</span></button>`;
+  }
   return `
-  <nav class="crumbs"><button class="link" data-a="home">← caderno</button><button class="link" data-a="edit-w">editar treino</button></nav>
+  <nav class="crumbs"><button class="link" data-a="home">← caderno</button><button class="link" data-a="edit-w">editar</button></nav>
   <h1 class="t-title">${esc(w.name || 'Treino sem nome')}</h1>
-  <p class="t-note">${fmtLong(new Date())} · ${doneN} de ${w.exercises.length} feitos</p>
-  ${allDone ? `<p class="alldone"><span class="hl" style="--c:var(--up)">Treino fechado!</span></p>${cmp ? compareCard(w, cmp, true) : ''}` : ''}
-  ${next ? `<button class="btn btn--go btn--wide btn--xl go-next" data-a="run" data-e="${next.e.id}">${ICON.play}<span>${doneN ? 'Próximo' : 'Começar'}: ${esc(next.e.name || 'exercício')}</span></button>` : ''}
+  <p class="t-note">${sub}</p>
+  ${top}
   <ol class="exlist">${items.map(i => {
-    const ref = i.today || i.last;
-    const info = ref ? `${i.today ? 'hoje' : fmtDate(ref.ts)}: ${fmt(ref.load)} kg · ${ref.total} reps` : 'ainda sem registro';
-    return `<li class="ex${i.today ? ' is-done' : ''}${next && next.e.id === i.e.id && doneN ? ' is-next' : ''}" id="row-${i.e.id}">
-      <span class="cb" aria-hidden="true">${i.today ? ICON.check : ''}</span>
+    const ref = i.done || i.last;
+    const info = ref ? `${i.done && going ? 'agora' : fmtDate(ref.ts)}: ${fmt(ref.load)} kg · ${ref.total} reps` : 'ainda sem registro';
+    const cls = `${i.done ? ' is-done' : ''}${next && next.e.id === i.e.id && doneN ? ' is-next' : ''}${fresh.done === i.e.id ? ' just-done' : ''}`;
+    return `<li class="ex${cls}" id="row-${i.e.id}">
+      <span class="cb" aria-hidden="true" style="${FX.hand(i.e.id + ':cb', 1.4)}">${i.done ? ICON.check : ''}</span>
       <button class="ex-main" data-a="run" data-e="${i.e.id}">
-        <span class="ex-name">${esc(i.e.name || 'Exercício sem nome')}</span>
-        <span class="ex-info"><span class="chip">${TECH[i.e.tech].name}</span><span>${esc(info)}</span>${ref ? vmini(ref.verdict) : ''}</span>
+        <span class="ex-name"><span class="strike">${esc(i.e.name || 'Exercício sem nome')}</span></span>
+        <span class="ex-info">${TECH[i.e.tech].name} · ${esc(info)}${ref ? ` <span class="delta delta--sm delta--${ref.verdict}">${VWORD[ref.verdict]}</span>` : ''}</span>
       </button>
-      <button class="link ex-hist" data-a="hist" data-e="${i.e.id}">histórico</button>
+      <button class="btn-round btn-round--quiet" data-a="hist" data-e="${i.e.id}" aria-label="Histórico de ${esc(i.e.name || 'exercício')}">${ICON.chart}</button>
     </li>`;
   }).join('')}</ol>
-  ${!w.exercises.length ? `<p class="t-muted" style="margin-top:var(--sp-4)">Esse treino tá vazio. <button class="link" data-a="edit-w">Adicionar exercícios</button></p>` : ''}
-  ${!allDone && cmp ? compareCard(w, cmp, false) : ''}`;
+  ${!w.exercises.length ? '<p class="t-muted empty">Esse treino tá vazio. <button class="link" data-a="edit-w">Adicionar exercícios</button></p>' : ''}
+  ${going && cmp ? compareCard(w, cmp, false, s) : ''}
+  ${going && doneN ? '<p class="end-w"><button class="link" data-a="end-w">encerrar o treino por aqui</button></p>' : ''}`;
 }
-function compareCard(w, cmp, final) {
+function compareCard(w, cmp, final, s) {
   const rows = cmp.rows.map(r => {
     const name = esc(getE(w.id, r.t.eid)?.name || r.t.name || 'Exercício');
     if (!r.p) return `<tr><th scope="row">${name}</th><td>${fmt(r.t.load)}</td><td>${r.t.total}</td><td><span class="t-muted">1ª vez</span></td></tr>`;
     return `<tr><th scope="row">${name}</th><td>${loadPair(r.p.load, r.t.load)}</td><td>${r.p.total}→${r.t.total}</td><td>${deltaChip(r.d.pct)}</td></tr>`;
   }).join('');
-  return `<section class="card card--b compare${final ? ' compare--final' : ''}" aria-label="Progresso">
-    <span class="tape" aria-hidden="true"></span>
-    <p class="t-label">${final ? 'Hoje' : 'Até agora'}${cmp.prevDay ? ` vs. ${fmtDay(cmp.prevDay)}` : ''}</p>
+  const teacher = final && cmp.pct != null && dirOf(cmp.pct) === 'up' ? FX.teacherStamp(fresh.closed ? ' is-new' : '') : '';
+  return `<section class="card card--flat compare${final ? ' compare--final' : ''}" aria-label="Progresso">
+    ${teacher}
+    <p class="t-label">${final ? (sameDay(s.startedAt) ? 'Hoje' : `Treino de ${fmtDate(s.startedAt)}`) : 'Até agora'}${cmp.prevTs ? ` vs. ${fmtDate(cmp.prevTs)}` : ''}</p>
     <p class="compare-say">${progressSay(cmp)}</p>
     <div class="table-wrap"><table class="compare-t">
       <thead><tr><th scope="col">exercício</th><th scope="col">kg</th><th scope="col">reps</th><th scope="col">volume</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
-    ${cmp.compared ? '<p class="t-note">Volume é carga × reps somadas. É o jeito mais justo de comparar quando a carga muda.</p>' : ''}
+    ${cmp.compared ? '<p class="t-note">Volume é carga × reps somadas.</p>' : ''}
   </section>`;
 }
 function numField(e, k, label) {
@@ -556,20 +541,20 @@ function numField(e, k, label) {
 }
 function viewEdit(w) {
   return `
-  <nav class="crumbs"><button class="link" data-a="edit-done">← pronto</button><span class="t-muted">editando</span></nav>
+  <nav class="crumbs"><button class="link" data-a="edit-done">← pronto</button><span class="t-note">editando</span></nav>
   <label class="t-label" for="wname">Nome do treino</label>
   <div class="field-wrap" id="fw-wname"><input id="wname" class="field field--display" data-in="w-name" value="${esc(w.name)}" placeholder="Treino A, Peito e costas…" autocomplete="off">${PEN}</div>
   <h2 class="t-section"><span class="under">Exercícios</span></h2>
   <div class="edlist">${w.exercises.map((e, i) => {
     const T = TECH[e.tech];
-    return `<div class="card ed" id="ed-${e.id}">
+    return `<div class="card card--flat hand ed" id="ed-${e.id}" style="${FX.hand(e.id, 0.4)}">
       <div class="ed-row"><span class="ed-n">${i + 1}.</span><div class="field-wrap"><input id="exn-${e.id}" class="field" data-in="ex-name" data-e="${e.id}" value="${esc(e.name)}" placeholder="Nome do exercício" autocomplete="off" aria-label="Nome do exercício ${i + 1}">${PEN}</div></div>
       <div class="tech-pick" role="radiogroup" aria-label="Técnica">${Object.entries(TECH).map(([k, t]) => `<button role="radio" aria-checked="${k === e.tech}" class="tp${k === e.tech ? ' on' : ''}" data-a="ex-tech" data-e="${e.id}" data-t="${k}">${t.name}</button>`).join('')}</div>
-      <div class="params">${numField(e, 'blocks', 'blocos')}${T.mode === 'fixed' ? numField(e, 'reps', 'reps por bloco') : numField(e, 'goal', 'meta de reps')}${numField(e, 'rest', 'descanso (s)')}</div>
-      <div class="ed-actions">${i > 0 ? `<button class="link" data-a="ex-up" data-e="${e.id}">subir na lista</button>` : '<span></span>'}<button class="link link--danger" data-a="ex-del" data-e="${e.id}">apagar</button></div>
+      <div class="params">${numField(e, 'blocks', 'blocos')}${T.mode === 'fixed' ? numField(e, 'reps', 'reps/bloco') : numField(e, 'goal', 'meta')}${numField(e, 'rest', 'descanso (s)')}</div>
+      <div class="ed-actions">${i > 0 ? `<button class="link" data-a="ex-up" data-e="${e.id}">subir</button>` : '<span></span>'}<button class="link link--danger" data-a="ex-del" data-e="${e.id}">apagar</button></div>
     </div>`;
   }).join('')}</div>
-  <button class="btn btn--ghost btn--wide ed-add" data-a="ex-add">+ adicionar exercício</button>
+  <button class="btn btn--ghost btn--wide ed-add" data-a="ex-add">+ exercício</button>
   <div class="ed-foot"><button class="btn btn--wide" data-a="edit-done">Pronto</button><button class="link link--danger" data-a="w-del">apagar este treino</button></div>`;
 }
 
@@ -591,7 +576,7 @@ function blockStrip(cfg) {
       if (i === cur && run.phase === 'rest') cls += ' is-next';
       inner = cfg.mode === 'fixed' && run.phase === 'ready' ? tally(0, cfg.reps, i + 1) : '';
     }
-    cells += `<div class="cell ${cls}"><span class="cell-n">B${i + 1}</span>${inner}${extra}</div>`;
+    cells += `<div class="cell hand ${cls}" style="${FX.hand(`${run.eid}:${i}`, 0.7)}"><span class="cell-n">B${i + 1}</span>${inner}${extra}</div>`;
   }
   return `<div class="blocks" style="--n:${n}" aria-label="${run.reps.length} de ${n} blocos feitos">${cells}</div>`;
 }
@@ -619,8 +604,8 @@ function viewRun() {
 function stageReady(e, cfg, T) {
   const plan = planFor(e);
   return `
-    <p class="t-note">${T.rule(cfg)}</p>
-    <div class="card card--b plan"><span class="tape" aria-hidden="true"></span><span class="t-label">Plano de hoje</span><p>${plan.html}</p></div>
+    <details class="rule"><summary>${spec(cfg)}</summary><p>${T.rule(cfg)}</p></details>
+    <div class="card card--flat plan"><span class="t-label">Plano de hoje</span><p>${plan.html}</p></div>
     <div>
       <label class="t-label" for="loadIn">Carga de hoje</label>
       <div class="load-row">
@@ -633,7 +618,7 @@ function stageReady(e, cfg, T) {
     </div>
     <div class="spacer"></div>
     <button class="btn btn--go btn--wide btn--xl" data-a="begin">${ICON.play}<span>Começar a série</span></button>
-    <p class="t-note hint">Deixa o celular de pé na sua frente. A cada bloco, um toque no post-it.</p>`;
+    <p class="t-note hint">Deixa o celular de pé na sua frente e toca no post-it a cada bloco.</p>`;
 }
 function stageWork(cfg) {
   const i = run.reps.length, isLast = i === cfg.blocks - 1;
@@ -649,7 +634,7 @@ function stageWork(cfg) {
   return `
     <div class="cue"><span class="cue-k">bloco</span><b>${i + 1}</b><span class="cue-of">/${cfg.blocks}</span></div>
     <p class="cue-sub">${sub}</p>
-    <button class="postit" data-a="block-done" aria-label="Terminei o bloco ${i + 1}">
+    <button class="postit${run.slap ? ' postit--in' : ''}" data-a="block-done" aria-label="Terminei o bloco ${i + 1}">
       <span class="postit-big">${isLast ? 'Terminei!' : 'Terminei o bloco'}</span>
       <span class="postit-small">toca aqui</span>
     </button>
@@ -677,23 +662,12 @@ function stageDone(e, cfg) {
   const ev = evaluate(cfg, run.reps, run.load);
   const vc = verdictCopy(cfg, ev, run.reps);
   const prev = lastLog(e.id);
-  let prog;
+  let cmp;
   if (prev) {
     const d = exDelta({ load: run.load, total: ev.total }, prev);
-    const hasLoad = prev.load != null || run.load != null;
-    prog = `<section class="card compare compare--ex" aria-label="Comparado ao último treino">
-      <p class="t-label">Comparado a ${fmtDate(prev.ts)}</p>
-      <p class="compare-say">${dirOf(d.pct) === 'up' ? `Progrediu <span class="circled">${fmtPct(d.pct)}${ICON.ring}</span> em volume.` : dirOf(d.pct) === 'down' ? `${fmtPct(d.pct).slice(1)} abaixo em volume. Bola pra frente.` : 'Mesmo volume da última vez.'}</p>
-      <table class="compare-t">
-        <thead><tr><th scope="col"></th><th scope="col">antes</th><th scope="col">hoje</th><th scope="col"></th></tr></thead>
-        <tbody>
-          ${hasLoad ? `<tr><th scope="row">carga</th><td>${fmt(prev.load)} kg</td><td>${fmt(run.load)} kg</td><td>${deltaNum(d.dLoad, ' kg')}</td></tr>` : ''}
-          <tr><th scope="row">reps</th><td>${prev.total}</td><td>${ev.total}</td><td>${deltaNum(d.dReps)}</td></tr>
-          <tr><th scope="row">volume</th><td>${fmt(d.pv)}</td><td>${fmt(d.nv)}</td><td>${deltaChip(d.pct)}</td></tr>
-        </tbody>
-      </table>
-    </section>`;
-  } else prog = '<p class="t-note">Primeira vez nesse exercício. No próximo treino eu mostro quanto você progrediu.</p>';
+    const kg = prev.load !== run.load && (prev.load != null || run.load != null) ? `, ${fmt(prev.load)} → ${fmt(run.load)} kg` : '';
+    cmp = `<p class="stamp-cmp"><span class="t-label">vs. ${fmtDate(prev.ts)}</span>${deltaChip(d.pct)} de volume <span class="t-muted">(${prev.total} → ${ev.total} reps${kg})</span></p>`;
+  } else cmp = '<p class="stamp-cmp t-note">Primeira vez nesse exercício. No próximo treino eu mostro quanto você progrediu.</p>';
   const askLast = cfg.lastMax || cfg.mode === 'count';
   const rows = run.reps.map((r, i) => {
     const failed = cfg.mode === 'fixed' && r < cfg.reps;
@@ -702,19 +676,19 @@ function stageDone(e, cfg) {
       <span class="rn">B${i + 1}</span>
       <span class="rt">${tally(r, 0, i + 1)}</span>
       ${stepper(i)}
-      ${i === run.reps.length - 1 && run.reps.length > 1 ? `<button class="xbtn" data-a="rm-block" aria-label="remover bloco ${i + 1}">×</button>` : '<span></span>'}
+      ${i === run.reps.length - 1 && run.reps.length > 1 ? `<button class="xbtn" data-a="rm-block" aria-label="apagar bloco ${i + 1}">×</button>` : '<span></span>'}
     </div>`;
   }).join('');
   const canAdd = run.reps.length < cfg.blocks && (cfg.mode === 'count' || ev.failBlock == null || ev.failBlock > run.reps.length);
+  const isNew = run.fresh;
   return `
-    <div class="done-head"><span class="hl" style="--c:var(--up)">Fim da série!</span><span class="total">${ev.total} reps</span></div>
+    <div class="done-head"><span class="hl${isNew ? ' hl--swipe' : ''}" style="--c:var(--up)">Fim da série!</span><span class="total">${ev.total} reps</span></div>
     <div>
       <span class="t-label">Confere as reps de cada bloco</span>
       <div class="rrows">${rows}</div>
       ${canAdd ? '<button class="link addb" data-a="add-block">+ esqueci de marcar um bloco</button>' : ''}
     </div>
-    ${prog}
-    <div class="card card--b stamp" style="--c:var(--${ev.verdict})"><h3>${vc.title}</h3><p>${vc.body}</p></div>
+    <div class="card card--b stamp${isNew ? ' is-new' : ''}" style="--c:var(--${ev.verdict})"><h3>${vc.title}</h3><p>${vc.body}</p>${cmp}</div>
     <div class="done-actions">
       <button class="btn btn--go btn--wide btn--xl" data-a="save">Anotar no caderno</button>
       <button class="link link--danger" data-a="discard">descartar esta série</button>
@@ -736,25 +710,24 @@ function viewHistory() {
   const logs = logsOf(e.id);
   const rows = logs.map((l, i) => {
     const p = logs[i - 1];
-    return `<tr>
+    return `<tr id="log-${l.id}">
       <td>${fmtDate(l.ts)}</td>
       <td>${fmt(l.load)}</td>
       <td class="reps">${l.reps.join('·')} <b>= ${l.total}</b></td>
       <td>${p ? deltaChip(exDelta(l, p).pct) : '<span class="t-muted">—</span>'}</td>
-      <td>${vmini(l.verdict)}</td>
       <td><button class="del" data-a="del-log" data-l="${l.id}" aria-label="apagar registro de ${fmtDate(l.ts)}">×</button></td>
     </tr>`;
   }).reverse().join('');
   return `
   <nav class="crumbs"><button class="link" data-a="open-w" data-w="${w.id}">← ${esc(w.name || 'treino')}</button></nav>
   <h1 class="t-title">${esc(e.name || 'Exercício')}</h1>
-  <p class="t-note"><span class="chip">${TECH[e.tech].name}</span> · ${logs.length} registro${logs.length === 1 ? '' : 's'}</p>
+  <p class="t-note">${TECH[e.tech].name} · ${logs.length} registro${logs.length === 1 ? '' : 's'}</p>
   ${logs.length >= 2 ? chart(logs) : ''}
   ${logs.length ? `<div class="table-wrap hist"><table class="compare-t">
-    <thead><tr><th scope="col">data</th><th scope="col">kg</th><th scope="col">reps por bloco</th><th scope="col">volume</th><th scope="col">próx.</th><th scope="col"><span class="t-muted" aria-label="apagar"></span></th></tr></thead>
+    <thead><tr><th scope="col">data</th><th scope="col">kg</th><th scope="col">reps</th><th scope="col">volume</th><th scope="col"><span class="sr">apagar</span></th></tr></thead>
     <tbody>${rows}</tbody></table></div>`
-    : '<p class="t-muted" style="margin-top:var(--sp-4)">Ainda não tem nada anotado aqui. Faz uma série e ela aparece nesta página.</p>'}
-  <div style="margin-top:var(--sp-5)"><button class="btn btn--go btn--wide" data-a="run" data-e="${e.id}">${ICON.play}<span>Fazer agora</span></button></div>`;
+    : '<p class="t-muted empty">Ainda não tem nada anotado aqui. Faz uma série e ela aparece nesta página.</p>'}
+  <div class="hist-go"><button class="btn btn--go btn--wide" data-a="run" data-e="${e.id}">${ICON.play}<span>Fazer agora</span></button></div>`;
 }
 function chart(all) {
   const L = all.slice(-10), W = 340, H = 170, pl = 20, pr = 20, pt = 30, pb = 40;
@@ -768,12 +741,12 @@ function chart(all) {
     <text class="kg" x="${x(i).toFixed(1)}" y="${H - 6}">${fmtDate(l.ts)}</text>`).join('');
   return `<figure class="chart">
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Total de reps nos últimos ${L.length} treinos"><path class="ln" d="${d}"/>${pts}</svg>
-    <figcaption class="t-note">Total de reps por treino. A bolinha mostra o veredito: verde sobe, amarelo mantém, rosa baixa.</figcaption>
+    <figcaption class="t-note">Total de reps por treino. Verde: subiu a carga. Amarelo: manteve. Rosa: baixou.</figcaption>
   </figure>`;
 }
 
 /* =========================================================
-   Render
+   Render e navegação
    ========================================================= */
 function render() {
   let html;
@@ -785,7 +758,7 @@ function render() {
   }
   $('#app').innerHTML = html;
   $('#sheetLayer').innerHTML = view.name === 'run' && run && run.ask ? viewAsk() : '';
-  if (run) run.animIdx = -1;
+  if (run) { run.animIdx = -1; run.slap = false; run.fresh = false; }
   if (view.name === 'run' && run && run.phase === 'rest' && !tickT) startTick();
   if (focusAfter) {
     const el = document.getElementById(focusAfter); focusAfter = null;
@@ -794,7 +767,15 @@ function render() {
   const cbs = afterRender; afterRender = [];
   cbs.forEach(fn => { try { fn(); } catch (e) {} });
 }
-function go(v) { view = v; armed = null; window.scrollTo(0, 0); render(); }
+/* profundidade de cada tela: ir mais fundo vira a folha pra cima, voltar traz a folha de volta */
+const depthOf = v => v.name === 'home' ? 0 : v.name === 'workout' ? (v.edit ? 1.5 : 1) : 2;
+function go(v) {
+  const from = depthOf(view), to = depthOf(v);
+  const apply = () => { view = v; armed = null; window.scrollTo(0, 0); render(); };
+  // a folha vira a partir do topo, então sobe antes de virar
+  if (from !== to) window.scrollTo(0, 0);
+  FX.flipPage(apply, from === to ? null : to > from ? 'fwd' : 'back');
+}
 function confirmTap(el, key, label) {
   if (armed === key && Date.now() - armedAt < 3500) { armed = null; clearTimeout(armedTimer); return true; }
   armed = key; armedAt = Date.now();
@@ -807,6 +788,28 @@ function toast(msg) {
   const t = $('#toast'); if (!t) return;
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 2800);
+}
+/* tocar pra fazer um exercício começa a rodada (se não tiver uma aberta) */
+function startRun(wid, eid) {
+  const e = getE(wid, eid); if (!e) return;
+  const { s, isNew } = startSession(wid);
+  run = { wid, eid: e.id, sid: s.id, newSession: isNew, phase: 'ready', phaseAt: Date.now(), load: planFor(e).load, reps: [], animIdx: -1 };
+  go({ name: 'run', wid });
+}
+/* saiu da série sem anotar: se a rodada tinha acabado de começar, desfaz */
+function leaveRun() {
+  stopTick(); releaseWake();
+  const wid = run ? run.wid : view.wid;
+  if (run && run.newSession) dropIfEmpty(run.sid);
+  run = null; clearRunDraft();
+  go({ name: 'workout', wid });
+}
+/* roda uma animação de borracha e só depois muda o estado */
+async function erase(el, opts, then) {
+  if (busy) return;
+  busy = true;
+  try { await FX.eraseOut(el, opts); } finally { busy = false; }
+  then();
 }
 
 /* =========================================================
@@ -824,10 +827,10 @@ const ACT = {
   },
   home() {
     const fw = fresh.w; fresh.w = null;
-    if (fw) afterRender.push(() => drawIn($(`#wc-${fw}`), { delay: 150 }));
+    if (fw) afterRender.push(() => FX.drawIn($(`#wc-${fw}`), { delay: 420 }));
     go({ name: 'home' });
   },
-  'hide-how'() { S.settings.hideHow = true; saveCaderno(); render(); },
+  'hide-how'(el) { erase(el.closest('.how'), { collapse: true }, () => { S.settings.hideHow = true; saveCaderno(); render(); }); },
   set(el) { const k = el.dataset.k; S.settings[k] = !S.settings[k]; saveCaderno(); render(); },
   'open-w'(el) { go({ name: 'workout', wid: el.dataset.w }); },
   'new-w'() {
@@ -835,10 +838,10 @@ const ACT = {
     S.workouts.push(w); saveCaderno();
     fresh.w = w.id; fresh.ex.add(w.exercises[0].id);
     focusAfter = 'wname';
-    afterRender.push(() => { lineIn($('#fw-wname')); drawIn($(`#ed-${w.exercises[0].id}`), { delay: 300 }); });
+    afterRender.push(() => { FX.lineIn($('#fw-wname')); FX.drawIn($(`#ed-${w.exercises[0].id}`), { delay: 450 }); });
     go({ name: 'workout', wid: w.id, edit: true });
   },
-  'edit-w'() { view.edit = true; render(); },
+  'edit-w'() { go({ ...view, edit: true }); },
   'edit-done'() {
     const w = getW(view.wid);
     // treino criado e abandonado sem nada escrito não vira lixo no caderno
@@ -848,7 +851,7 @@ const ACT = {
       saveCaderno(); go({ name: 'home' }); return;
     }
     const ids = [...fresh.ex]; fresh.ex.clear();
-    afterRender.push(() => writeIn(ids.map(id => document.getElementById(`row-${id}`)).filter(Boolean)));
+    afterRender.push(() => setTimeout(() => FX.writeIn(ids.map(id => document.getElementById(`row-${id}`)).filter(Boolean)), 380));
     go({ ...view, edit: false });
   },
   'ex-tech'(el) {
@@ -863,27 +866,48 @@ const ACT = {
   },
   'ex-del'(el) {
     if (!confirmTap(el, 'ex-del:' + el.dataset.e, 'apagar mesmo?')) return;
-    const w = getW(view.wid); w.exercises = w.exercises.filter(e => e.id !== el.dataset.e);
-    fresh.ex.delete(el.dataset.e);
-    touchWorkout(w); saveCaderno(); render();
+    const id = el.dataset.e;
+    erase(document.getElementById(`ed-${id}`), { collapse: true }, () => {
+      const w = getW(view.wid); w.exercises = w.exercises.filter(e => e.id !== id);
+      fresh.ex.delete(id); touchWorkout(w); saveCaderno(); render();
+    });
   },
   'ex-add'() {
     const w = getW(view.wid), e = mkEx('');
     w.exercises.push(e); fresh.ex.add(e.id); touchWorkout(w); saveCaderno();
     focusAfter = 'exn-' + e.id;
-    afterRender.push(() => drawIn(document.getElementById(`ed-${e.id}`), { delay: 80 }));
+    afterRender.push(() => FX.drawIn(document.getElementById(`ed-${e.id}`), { delay: 80 }));
     render();
   },
   'w-del'(el) {
     if (!confirmTap(el, 'w-del', 'apagar o treino inteiro?')) return;
-    S.workouts = S.workouts.filter(w => w.id !== view.wid);
-    if (fresh.w === view.wid) fresh.w = null;
-    saveCaderno(); go({ name: 'home' }); toast('Treino apagado.');
+    const w = getW(view.wid), idx = S.workouts.indexOf(w);
+    const ghost = wcard(w);
+    S.workouts = S.workouts.filter(x => x !== w);
+    S.sessions = S.sessions.filter(x => x.wid !== w.id || sessLogs(x.id).length);
+    if (fresh.w === w.id) fresh.w = null;
+    saveCaderno();
+    // o cartão aparece na capa e a borracha apaga ele lá
+    afterRender.push(() => {
+      const cards = $('.cards'); if (!cards) return;
+      const tmp = document.createElement('div'); tmp.innerHTML = ghost;
+      const g = tmp.firstElementChild; g.removeAttribute('data-a'); g.setAttribute('aria-hidden', 'true'); g.tabIndex = -1;
+      const ref = cards.querySelectorAll('.wcard')[idx];
+      if (!cards.querySelector('.wcard')) cards.innerHTML = '';
+      cards.insertBefore(g, ref || null);
+      setTimeout(() => erase(g, { collapse: true }, () => { render(); toast('Treino apagado.'); }), 450);
+    });
+    go({ name: 'home' });
   },
-  run(el) {
-    const wid = view.wid, e = getE(wid, el.dataset.e); if (!e) return;
-    run = { wid, eid: e.id, phase: 'ready', phaseAt: Date.now(), load: planFor(e).load, reps: [], animIdx: -1 };
-    go({ name: 'run', wid });
+  run(el) { startRun(view.wid, el.dataset.e); },
+  'start-w'() { const w = getW(view.wid); if (w && w.exercises[0]) startRun(w.id, w.exercises[0].id); },
+  'end-w'(el) {
+    if (!confirmTap(el, 'end-w', 'toca de novo pra encerrar')) return;
+    const s = openSession(view.wid); if (!s) return;
+    s.closedAt = Date.now(); saveCaderno();
+    fresh.closed = true;
+    afterRender.push(() => { FX.drawIn($('.compare--final'), { delay: 120 }); fresh.closed = false; });
+    window.scrollTo(0, 0); render();
   },
   hist(el) { go({ name: 'history', wid: view.wid, eid: el.dataset.e }); },
   load(el) {
@@ -895,13 +919,14 @@ const ACT = {
     const inp = $('#loadIn'); if (inp) run.load = parseNum(inp.value);
     audioUnlock(); requestWake();
     const cfg = cfgOf(curEx());
-    run.reps = []; setPhase('work');
+    run.reps = []; setPhase('work'); run.slap = true;
     cue('start', 1, cfg.blocks === 1);
     saveRunDraft(); render(); window.scrollTo(0, 0);
   },
-  'block-done'() {
-    if (!run || run.phase !== 'work' || Date.now() - run.phaseAt < 400) return;
+  'block-done'(el) {
+    if (!run || run.phase !== 'work' || busy || Date.now() - run.phaseAt < 400) return;
     audioUnlock();
+    FX.peelOff(el);
     const cfg = cfgOf(curEx()), i = run.reps.length, isLast = i === cfg.blocks - 1;
     pushBlock(cfg.mode === 'count' ? defaultCount(i) : cfg.reps);
     if (isLast) finish(); else startRest();
@@ -910,12 +935,22 @@ const ACT = {
   'fail-pick'(el) { pushBlock(parseInt(el.dataset.v, 10)); run.ask = null; finish(); },
   'ask-close'() { run.ask = null; render(); },
   'end-set'() { finish(); },
-  undo() { stopTick(); run.reps.pop(); setPhase('work'); saveRunDraft(); render(); },
+  undo() {
+    if (!run || !run.reps.length) return;
+    stopTick();
+    const cell = document.querySelectorAll('.blocks .cell')[run.reps.length - 1];
+    erase(cell && cell.querySelector('.t'), { dur: 480 }, () => {
+      run.reps.pop(); setPhase('work'); run.slap = true; saveRunDraft(); render();
+    });
+  },
   skip() { endRest(); },
   rep(el) {
     const i = +el.dataset.i; run.reps[i] = clamp((run.reps[i] || 0) + (+el.dataset.d), 0, 99); saveRunDraft(); render();
   },
-  'rm-block'() { if (run.reps.length > 1) { run.reps.pop(); saveRunDraft(); render(); } },
+  'rm-block'(el) {
+    if (run.reps.length <= 1) return;
+    erase(el.closest('.rrow'), { dur: 480, collapse: true }, () => { run.reps.pop(); saveRunDraft(); render(); });
+  },
   'add-block'() {
     const cfg = cfgOf(curEx());
     if (run.reps.length < cfg.blocks) { run.reps.push(cfg.mode === 'fixed' ? cfg.reps : (run.reps.at(-1) || 1)); saveRunDraft(); render(); }
@@ -923,33 +958,40 @@ const ACT = {
   save() {
     const e = curEx(), w = getW(run.wid), cfg = cfgOf(e), ev = evaluate(cfg, run.reps, run.load);
     const prev = lastLog(e.id);
-    const log = { id: newId(), ts: Date.now(), day: dayKey(), wid: run.wid, eid: e.id, name: e.name, tech: e.tech, cfg,
+    // se a rodada fechou enquanto a série estava aberta (6 h parada), começa outra
+    let s = S.sessions.find(x => x.id === run.sid);
+    if (!s || s.closedAt) s = startSession(run.wid).s;
+    const log = { id: newId(), ts: Date.now(), day: dayKey(), wid: run.wid, sid: s.id, eid: e.id, name: e.name, tech: e.tech, cfg,
       load: run.load, reps: run.reps.slice(), total: ev.total, verdict: ev.verdict, failBlock: ev.failBlock, next: ev.next };
     addLog(log);
-    touchWorkout(w); saveCaderno();
+    touchWorkout(w);
+    const allDone = isComplete(w, s);
+    if (allDone) s.closedAt = Date.now();
+    saveCaderno();
     const wid = run.wid; run = null; clearRunDraft(); releaseWake();
-    const today = dayKey();
-    const allDone = w.exercises.every(x => logsOf(x.id).some(l => l.day === today));
-    const sess = allDone ? sessionCompare(w, today) : null;
+    const sess = allDone ? sessionCompare(w, s) : null;
     let msg = 'Anotado no caderno.';
+    fresh.done = e.id;
     if (allDone) {
+      fresh.closed = true;
       msg = sess && sess.pct != null && dirOf(sess.pct) === 'up' ? `Treino fechado! ${fmtPct(sess.pct)} vs. o treino anterior.` : 'Treino fechado! Tudo anotado.';
-      afterRender.push(() => drawIn($('.compare--final'), { delay: 250 }));
+      afterRender.push(() => FX.drawIn($('.compare--final'), { delay: 450 }));
     } else if (prev) {
       const d = exDelta(log, prev), dir = dirOf(d.pct);
       msg = dir === 'up' ? `Anotado! ${fmtPct(d.pct)} de volume vs. ${fmtDate(prev.ts)}.`
         : dir === 'down' ? `Anotado. ${fmtPct(d.pct)} vs. ${fmtDate(prev.ts)}, bola pra frente.`
         : `Anotado. Igual a ${fmtDate(prev.ts)}.`;
     }
+    afterRender.push(() => { fresh.done = null; fresh.closed = false; });
     go({ name: 'workout', wid }); toast(msg);
   },
   discard(el) {
     if (!confirmTap(el, 'discard', 'toca de novo pra descartar')) return;
-    const wid = run.wid; run = null; clearRunDraft(); releaseWake(); go({ name: 'workout', wid });
+    erase($('.stage'), { dur: 700 }, leaveRun);
   },
   'run-exit'(el) {
     if (run && run.reps.length && run.phase !== 'ready') { if (!confirmTap(el, 'exit', 'sair sem anotar?')) return; }
-    stopTick(); const wid = run ? run.wid : view.wid; run = null; clearRunDraft(); releaseWake(); go({ name: 'workout', wid });
+    leaveRun();
   },
   mute() {
     const on = S.settings.sound || S.settings.voice;
@@ -959,7 +1001,8 @@ const ACT = {
   },
   'del-log'(el) {
     if (!confirmTap(el, 'del:' + el.dataset.l, 'apagar?')) return;
-    deleteLog(el.dataset.l); render(); toast('Registro apagado.');
+    const id = el.dataset.l, tr = document.getElementById(`log-${id}`);
+    erase(tr, { parts: tr ? tr.children : null }, () => { deleteLog(id); render(); toast('Registro apagado.'); });
   }
 };
 const INP = {
@@ -981,10 +1024,10 @@ document.addEventListener('click', ev => {
 });
 document.addEventListener('input', ev => {
   const el = ev.target.closest('[data-in]'); if (el && INP[el.dataset.in]) INP[el.dataset.in](el);
-  if (ev.target.matches && ev.target.matches('.field-wrap .field')) penFollow(ev.target, true);
+  if (ev.target.matches && ev.target.matches('.field-wrap .field')) FX.penFollow(ev.target, true);
 });
 document.addEventListener('change', ev => { const el = ev.target.closest('[data-in]'); if (el && CHG[el.dataset.in]) CHG[el.dataset.in](el); });
-document.addEventListener('focusin', ev => { if (ev.target.matches && ev.target.matches('.field-wrap .field')) penFollow(ev.target, false); });
+document.addEventListener('focusin', ev => { if (ev.target.matches && ev.target.matches('.field-wrap .field')) FX.penFollow(ev.target, false); });
 document.addEventListener('keydown', ev => {
   if (ev.key === 'Enter' && ev.target.matches && ev.target.matches('input')) ev.target.blur();
   if (ev.key === 'Escape' && installOpen) { closeInstall(); return; }

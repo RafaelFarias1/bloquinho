@@ -22,6 +22,7 @@
   --postit:#ffe66d; --fold:#e3c341;
   --tape:rgba(212,200,158,.62);
   --drop:#1b1c21;       /* sombra de desenho animado */
+  --crumb:#cbb9be;      /* farelo de borracha */
 
   /* semântica do veredito e do progresso */
   --up:var(--hl-g); --keep:var(--hl-y); --down:var(--hl-p);
@@ -61,7 +62,7 @@
     --paper:#16181e; --card:#1e2129; --desk:#0b0c10; --rule:#232d44; --margin:#5e2a33; --wire:#5d6475;
     --ink:#a8c3ff; --marker:#f0eee8; --pencil:#8f96a8; --red:#ff6f78; --ok:#5fcf7d;
     --hl-y:#eadc52; --hl-g:#8bd963; --hl-p:#f088c2; --under:rgba(234,220,82,.38); --on-hl:#15161b;
-    --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000;
+    --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000; --crumb:#6b6170;
   }
 }
 :root[data-theme="dark"]{
@@ -69,6 +70,6 @@
   --paper:#16181e; --card:#1e2129; --desk:#0b0c10; --rule:#232d44; --margin:#5e2a33; --wire:#5d6475;
   --ink:#a8c3ff; --marker:#f0eee8; --pencil:#8f96a8; --red:#ff6f78; --ok:#5fcf7d;
   --hl-y:#eadc52; --hl-g:#8bd963; --hl-p:#f088c2; --under:rgba(234,220,82,.38); --on-hl:#15161b;
-  --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000;
+  --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000; --crumb:#6b6170;
 }
 @media (min-width:600px){ :root{ --mx:40px; } }

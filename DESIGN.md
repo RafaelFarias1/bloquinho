@@ -62,12 +62,14 @@ Classes prontas: `.t-hero`, `.t-title`, `.t-section`, `.t-card`, `.t-label`, `.t
 - **Inclinação:** `--tilt-a` (−0,6°) e `--tilt-b` (0,5°) para cartões, e `--tilt-label` (−2°) para títulos e carimbos. É pouca coisa: o suficiente pra não parecer régua.
 - **Sombra de desenho animado:** `--sh-1`, `--sh-2` e `--sh-3`. São deslocadas e sem desfoque. Ao apertar, o elemento desce 2px e a sombra diminui.
 - **Bordas:** `--bw-thin` (1,5px), `--bw` (2px) e `--bw-thick` (2,5px), sempre em `--marker`.
+- **Feito à mão:** nada é igual a nada. `FX.hand(chave, força)` sorteia contorno, inclinação, deslocamento e sombra a partir do id de cada coisa, então o mesmo treino sempre sai com a mesma cara e dois treinos nunca saem iguais. `FX.tapes(chave)` sorteia a fita adesiva: no meio, num canto ou nos dois, com largura, ângulo, transparência e pontas rasgadas diferentes. Força 1 nos cartões de treino, 0,7 nos quadradinhos dos blocos, 0,4 nos cartões do editor e 1,4 nas caixinhas de marcar.
 
 ## 4. Componentes
 
 | Componente | Classe | Quando usar |
 |---|---|---|
-| Cartão | `.card` (+ `--b`, `--tilt-a`, `--tilt-b`) | qualquer bloco que "cola" na folha. Com `.tape` dentro, ganha fita adesiva em cima |
+| Cartão | `.card` (+ `--flat`, `--b`, `--tilt-a`, `--tilt-b`) | qualquer bloco que "cola" na folha. `--flat` é o do dia a dia (sombra curta); o padrão, com sombra cheia, fica pro que se toca |
+| Cartão de treino | `.card.hand.wcard` + `FX.hand()` + `FX.tapes()` | o único com fita adesiva; cada um com formato e fita próprios |
 | Botão | `.btn` (+ `--go`, `--warn`, `--ghost`, `--wide`, `--xl`) | ação. Amarelo é o padrão, verde é a ação principal da tela, rosa é falha, tracejado é secundária |
 | Botão redondo | `.btn-round` | contadores (− +), som, escolha de reps |
 | Tecla | `.key` | ajuste rápido de carga (−2,5, −1, +1, +2,5) |
@@ -88,15 +90,22 @@ Classes prontas: `.t-hero`, `.t-title`, `.t-section`, `.t-card`, `.t-label`, `.t
 
 ## 5. Movimento
 
-O movimento conta que alguém está **escrevendo no caderno**:
+O movimento conta que alguém está **mexendo num caderno de verdade**. Tudo fica em [`js/fx.js`](js/fx.js):
 
-- **Criar treino ou exercício:** um lápis contorna o cartão novo (`drawIn`) e o conteúdo aparece da esquerda para a direita, como se estivesse sendo escrito.
-- **Digitar um nome:** o lápis do campo acompanha o fim do texto e dá uma rabiscada a cada letra (`penFollow`).
-- **Voltar do editor:** os exercícios novos aparecem escritos na lista, um depois do outro (`writeIn`).
-- **Fechar o treino:** o cartão de progresso é desenhado e o percentual ganha um círculo de caneta vermelha.
-- **Contar reps:** cada risquinho é traçado na hora.
+| O que acontece | Animação | Função |
+|---|---|---|
+| Criar treino ou exercício | um lápis contorna o cartão novo e o conteúdo aparece escrito | `drawIn` |
+| Digitar um nome | o lápis do campo acompanha o texto e rabisca a cada letra | `penFollow` |
+| Voltar do editor | os exercícios novos aparecem escritos, um depois do outro | `writeIn` |
+| Apagar exercício, treino, registro, bloco ou série | a borracha bicolor de escola esfrega, solta farelo e o espaço fecha | `eraseOut` |
+| Trocar de tela | a folha vira pra cima ao entrar e volta ao sair; a espiral fica parada | `flipPage` (View Transitions) |
+| Terminar um bloco | o post-it descola e voa; no próximo bloco, um novo cola | `peelOff` + `.postit--in` |
+| Fim da série | o veredito bate como carimbo e o destaque é pintado com marca-texto | `.stamp.is-new`, `.hl--swipe` |
+| Exercício anotado | a caneta vermelha risca o nome e desenha o visto | `.ex.just-done` |
+| Treino fechado com progresso | círculo vermelho no percentual e carimbo de professora "MUITO BEM!" | `.circled`, `teacherStamp` |
+| Contar reps | cada risquinho é traçado na hora | `tally` |
 
-Durações: `--dur-fast` (120ms) para toque, `--dur` (250ms) para transições e `--dur-draw` (750ms) para desenho. Com "reduzir movimento" ligado no aparelho, nada anima e tudo aparece pronto.
+Movimento desacelera suave, sem quicar: um carimbo bate e para. Durações: `--dur-fast` (120ms) para toque, `--dur` (250ms) para transições e `--dur-draw` (750ms) para desenho. Com "reduzir movimento" ligado no aparelho, nada anima e tudo aparece pronto.
 
 ## 6. Escrita
 

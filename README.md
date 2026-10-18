@@ -7,6 +7,7 @@ Caderno de técnicas avançadas de musculação, com cara de caderno de papel.
 - **Muscle Round**: 6 blocos de 4 reps com 10 s de descanso. Você toca no post-it a cada bloco, o app conta o descanso com bipe e voz e, no fim, diz se sobe, mantém ou baixa a carga.
 - **Cluster set** e **Rest-pause**, com blocos, reps e descanso ajustáveis.
 - **Progresso**: no fim de cada série e de cada treino, mostra quanto você progrediu em relação ao treino anterior (carga, reps e volume).
+- **Rodadas**: o treino começa quando você toca pra fazer e fecha quando todos os exercícios forem anotados (ou quando você encerra). Ele fica marcado como feito até você começar de novo.
 - Histórico por exercício e plano de carga pro próximo treino.
 - Funciona offline e pode ser instalado na tela do celular (PWA).
 
@@ -18,7 +19,8 @@ Os dados ficam salvos no próprio aparelho (localStorage).
 index.html            casca da página
 css/tokens.css        design tokens (cor, tipo, espaço, forma, movimento)
 css/app.css           base, componentes e telas
-js/app.js             o app inteiro, sem build
+js/app.js             telas, dados e regras do treino
+js/fx.js              animações (lápis, borracha, carimbo, post-it, folha)
 sw.js                 cache offline
 manifest.webmanifest  instalação no celular
 icons/, logo.svg      ícones e logo

@@ -5,7 +5,7 @@
    ========================================================= */
 *{box-sizing:border-box}
 html{font-size:18px;height:100%;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-body{height:100%;margin:0;background:var(--desk);color:var(--ink);font:400 var(--fs-md)/var(--lh-body) var(--font-hand);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
+body{height:100%;margin:0;overflow-x:clip;background:var(--desk);color:var(--ink);font:400 var(--fs-md)/var(--lh-body) var(--font-hand);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0;padding:0;touch-action:manipulation;text-align:inherit}
 h1,h2,h3,p,ol,ul,figure{margin:0}
@@ -14,6 +14,7 @@ img{max-width:100%}
 :focus-visible{outline:var(--bw-thick) dashed var(--ink);outline-offset:3px}
 .svg-defs{position:absolute;width:0;height:0;overflow:hidden}
 .ic{width:1.1em;height:1.1em;flex:0 0 auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* =========================================================
    2. A folha (layout)
@@ -24,14 +25,15 @@ img{max-width:100%}
   background-image:
     linear-gradient(90deg,transparent var(--mx),var(--margin) var(--mx),var(--margin) calc(var(--mx) + var(--bw)),transparent calc(var(--mx) + var(--bw))),
     repeating-linear-gradient(180deg,transparent 0 calc(var(--line) - 1px),var(--rule) calc(var(--line) - 1px) var(--line));
-  box-shadow:0 12px 40px rgba(0,0,0,.18)}
-.spiral{flex:0 0 auto;height:30px;margin-inline:calc(-1 * (var(--mx) + var(--sp-3))) calc(-1 * var(--sp-4));
+  box-shadow:0 12px 40px rgba(0,0,0,.18);view-transition-name:page}
+.spiral{flex:0 0 auto;height:30px;margin-inline:calc(-1 * (var(--mx) + var(--sp-3))) calc(-1 * var(--sp-4));view-transition-name:spiral;
   background:
     linear-gradient(90deg,transparent 11px,var(--wire) 11px 15px,transparent 15px) 4px 0/26px 17px repeat-x,
     radial-gradient(circle at 13px 19px,var(--desk) 0 5.5px,transparent 6px) 4px 0/26px 30px repeat-x}
 #app{flex:1;display:flex;flex-direction:column;min-width:0}
 .crumbs{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-3);padding-block:var(--sp-2) var(--sp-1)}
 .spacer{flex:1}
+.empty{margin-top:var(--sp-4)}
 @media (min-width:600px){ .sheet{margin-block:var(--sp-5);min-height:calc(100% - 2 * var(--sp-5))} }
 
 /* =========================================================
@@ -45,18 +47,21 @@ img{max-width:100%}
 .t-note{font-size:var(--fs-sm);color:var(--pencil)}
 .t-muted{color:var(--pencil)}
 .under{background:linear-gradient(100deg,transparent .1em,var(--under) .25em,var(--under) calc(100% - .25em),transparent calc(100% - .1em)) 0 92%/100% .45em no-repeat;padding-inline:.12em}
-.hl{background:var(--c,var(--hl-y));color:var(--on-hl);padding:.02em .4em;border-radius:var(--r-hl);-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.hl{background:linear-gradient(var(--c,var(--hl-y)),var(--c,var(--hl-y))) 0 0/100% 100% no-repeat;color:var(--on-hl);padding:.02em .4em;border-radius:var(--r-hl);-webkit-box-decoration-break:clone;box-decoration-break:clone}
 
 /* =========================================================
    4. Componentes
    ========================================================= */
-/* 4.1 cartão */
+/* 4.1 cartão: --flat é o cartão do dia a dia; o padrão (com sombra cheia) fica pros que você toca */
 .card{position:relative;background:var(--card);border:var(--bw) solid var(--marker);border-radius:var(--r-a);box-shadow:var(--sh-2);padding:var(--sp-4);
   transition:box-shadow var(--dur),border-color var(--dur),transform var(--dur-fast)}
+.card--flat{box-shadow:var(--sh-1)}
 .card--b{border-radius:var(--r-b)}
 .card--tilt-a{transform:rotate(var(--tilt-a))}
 .card--tilt-b{transform:rotate(var(--tilt-b))}
-.tape{position:absolute;top:-12px;left:50%;width:86px;height:24px;margin-left:-43px;background:var(--tape);transform:rotate(-3deg);pointer-events:none}
+.tape{position:absolute;top:calc(var(--th,24px) / -2);left:var(--tx,50%);width:var(--tw,86px);height:var(--th,24px);background:var(--tape);opacity:var(--to,1);clip-path:var(--tclip,none);transform:translateX(-50%) rotate(var(--trot,-3deg));pointer-events:none}
+/* feito à mão: formato, inclinação e sombra sorteados por item (FX.hand) */
+.hand{border-radius:var(--hr);transform:translateX(var(--hx,0px)) rotate(var(--hrot,0deg))}
 .card:has(> .tape){padding-top:var(--sp-5)}
 
 /* 4.2 botões */
@@ -71,6 +76,7 @@ img{max-width:100%}
 .btn-round{width:44px;height:44px;flex:0 0 auto;border:var(--bw) solid var(--marker);border-radius:50%;display:grid;place-items:center;background:var(--card);color:var(--marker);font:700 var(--fs-lg)/1 var(--font-hand)}
 .btn-round:active{background:var(--hl-y);color:var(--on-hl)}
 .btn-round svg{width:22px;height:22px}
+.btn-round--quiet{border-color:transparent;background:transparent;color:var(--ink)}
 .key{flex:0 0 auto;min-width:46px;height:46px;padding:0 var(--sp-1);border:var(--bw) solid var(--marker);border-radius:var(--r-a);background:var(--card);color:var(--marker);font:700 var(--fs-md)/1 var(--font-hand);text-align:center}
 .key:active{background:var(--hl-y);color:var(--on-hl)}
 .link{color:var(--ink);font:700 var(--fs-md)/1.2 var(--font-hand);text-decoration:underline wavy;text-decoration-thickness:1px;text-underline-offset:5px;padding:var(--sp-2) 2px}
@@ -81,6 +87,7 @@ img{max-width:100%}
 .chip{display:inline-block;font:700 var(--fs-xs)/1 var(--font-hand);letter-spacing:.08em;text-transform:uppercase;border:var(--bw-thin) solid currentColor;border-radius:var(--r-b);padding:.32em .55em .24em;color:var(--marker);white-space:nowrap;vertical-align:.12em}
 .chip--example{color:var(--red);border-style:dashed;text-transform:none;letter-spacing:0}
 .delta{display:inline-block;font:700 var(--fs-sm)/1 var(--font-hand);padding:.3em .5em .22em;border-radius:var(--r-hl);background:var(--c,var(--keep));color:var(--on-hl);white-space:nowrap;font-variant-numeric:tabular-nums}
+.delta--sm{font-size:var(--fs-xs);padding:.25em .4em .18em}
 .delta--up{--c:var(--up)}
 .delta--keep{--c:var(--keep)}
 .delta--down{--c:var(--down)}
@@ -98,7 +105,7 @@ img{max-width:100%}
 .field-wrap:focus-within .field-pen{opacity:1}
 .field-wrap .field:placeholder-shown + .field-pen{opacity:0}
 .num{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-sm);color:var(--pencil)}
-.num input{width:4.6rem;border:0;border-bottom:var(--bw) solid var(--marker);border-radius:0;background:transparent;font:400 var(--fs-xl)/1.2 var(--font-display);color:var(--marker);padding:0 2px}
+.num input{width:4.2rem;border:0;border-bottom:var(--bw) solid var(--marker);border-radius:0;background:transparent;font:400 var(--fs-xl)/1.2 var(--font-display);color:var(--marker);padding:0 2px}
 .num input:focus{outline:none;border-bottom-color:var(--ink);background:linear-gradient(transparent 68%,var(--under) 68%)}
 
 /* 4.5 contador (− 4 +) */
@@ -108,12 +115,13 @@ img{max-width:100%}
 /* 4.6 caixinha de marcar */
 .toggles{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-5)}
 .toggle{display:inline-flex;align-items:center;gap:var(--sp-2);color:var(--ink);padding-block:var(--sp-1)}
-.toggle-box,.cb{width:24px;height:24px;flex:0 0 auto;border:var(--bw) solid var(--marker);border-radius:var(--r-b);display:grid;place-items:center;color:var(--red)}
+.toggle-box,.cb{width:24px;height:24px;flex:0 0 auto;border:var(--bw) solid var(--marker);border-radius:var(--hr,var(--r-b));transform:rotate(var(--hrot,0deg));display:grid;place-items:center;color:var(--red)}
 .toggle-box svg,.cb svg{width:24px;height:24px;margin:-4px -2px 0 2px}
 
 /* 4.7 carimbo do veredito */
-.stamp{border-width:var(--bw-thick);box-shadow:var(--sh-3);transform:rotate(var(--tilt-a))}
-.stamp h3{display:inline-block;font:400 var(--fs-xl)/var(--lh-tight) var(--font-display);color:var(--on-hl);background:var(--c);padding:.08em .45em;transform:rotate(var(--tilt-label));margin-bottom:var(--sp-2);border-radius:var(--r-hl)}
+.stamp{border-width:var(--bw-thick);box-shadow:var(--sh-3);transform:rotate(var(--tilt-a));display:flex;flex-direction:column;gap:var(--sp-2)}
+.stamp h3{align-self:flex-start;font:400 var(--fs-xl)/var(--lh-tight) var(--font-display);color:var(--on-hl);background:linear-gradient(var(--c),var(--c)) 0 0/100% 100% no-repeat;padding:.08em .45em;transform:rotate(var(--tilt-label));border-radius:var(--r-hl)}
+.stamp-cmp{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);padding-top:var(--sp-2);border-top:var(--bw-thin) dashed var(--rule)}
 
 /* 4.8 rabisco em volta (destaque) */
 .circ{position:absolute;inset:-9px -7px;width:calc(100% + 14px);height:calc(100% + 18px);color:var(--red);pointer-events:none;overflow:visible}
@@ -127,7 +135,7 @@ img{max-width:100%}
 .t .g{opacity:.3}
 .t .a{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .26s ease-out var(--d,0ms) forwards}
 
-/* 4.10 tabela de comparação */
+/* 4.10 tabela */
 .table-wrap{overflow-x:auto}
 .compare-t{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 .compare-t th,.compare-t td{padding:var(--sp-1) var(--sp-2);text-align:left;vertical-align:middle;border-bottom:var(--bw-thin) dashed var(--rule)}
@@ -139,12 +147,16 @@ img{max-width:100%}
 .compare-t th:first-child,.compare-t td:first-child{padding-left:0}
 .compare-t th:last-child,.compare-t td:last-child{padding-right:0}
 
-/* 4.11 folha de baixo (sheet) e aviso */
+/* 4.11 folha de baixo e aviso */
 .backdrop{position:fixed;inset:0;z-index:var(--z-sheet);background:rgba(10,12,20,.45);display:flex;align-items:flex-end;justify-content:center;padding:var(--sp-4);padding-bottom:calc(var(--sp-4) + env(safe-area-inset-bottom,0px))}
 .bsheet{width:100%;max-width:520px;max-height:calc(100dvh - var(--sp-6));overflow-y:auto;display:flex;flex-direction:column;gap:var(--sp-3);box-shadow:var(--sh-3);padding-bottom:var(--sp-2);animation:sheet-up var(--dur) var(--ease-out)}
 .bsheet h2{font:400 var(--fs-lg)/var(--lh-tight) var(--font-display);color:var(--marker);text-wrap:balance}
 .toast{position:fixed;left:50%;bottom:calc(var(--sp-5) + env(safe-area-inset-bottom,0px));z-index:var(--z-toast);transform:translate(-50%,30px) rotate(-1deg);opacity:0;pointer-events:none;background:var(--postit);color:var(--on-hl);font:700 var(--fs-md)/1.3 var(--font-hand);padding:var(--sp-2) var(--sp-4);box-shadow:0 8px 14px rgba(0,0,0,.2);transition:opacity var(--dur),transform var(--dur) var(--ease-out);max-width:calc(100% - var(--sp-6));text-align:center}
 .toast.show{opacity:1;transform:translate(-50%,0) rotate(-1deg)}
+
+/* 4.12 dobra (abre e fecha) */
+details>summary{list-style:none;cursor:pointer}
+details>summary::-webkit-details-marker{display:none}
 
 /* =========================================================
    5. Telas
@@ -155,50 +167,50 @@ img{max-width:100%}
 .logo{width:56px;height:56px;flex:0 0 auto;border-radius:14px;box-shadow:var(--sh-1);transform:rotate(-4deg)}
 .scrib{display:block;width:210px;max-width:70%;height:12px;color:var(--red);margin-top:2px}
 .scrib path{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round}
-.how{margin-top:var(--sp-5)}
-.how-list{padding-left:1.3rem;display:flex;flex-direction:column;gap:var(--sp-2)}
+.how{margin-top:var(--sp-5);display:flex;flex-direction:column;gap:var(--sp-1);padding-block:var(--sp-3) var(--sp-1)}
+.how-list{padding-left:1.3rem;display:flex;flex-direction:column;gap:2px}
 .how-list li::marker{font-family:var(--font-display);color:var(--red)}
-.how-list b{color:var(--marker)}
-.how-foot{display:flex;justify-content:flex-end}
+.how-ok{align-self:flex-end}
 .cards{display:flex;flex-direction:column;gap:var(--sp-5);margin-top:var(--sp-2)}
 .wcard{display:flex;flex-direction:column;gap:var(--sp-2);width:100%;text-align:left}
-.cards>.wcard:nth-child(even){border-radius:var(--r-b);transform:rotate(var(--tilt-b))}
-.cards>.wcard:active{transform:translate(2px,2px);box-shadow:var(--sh-1)}
+.wcard{box-shadow:var(--hsx,3px) var(--hsy,3px) 0 var(--drop)}
+.cards>.wcard:active{transform:translateX(var(--hx,0px)) translate(2px,2px) rotate(var(--hrot,0deg));box-shadow:var(--sh-1)}
 .wcard-head{display:flex;align-items:baseline;gap:var(--sp-2) var(--sp-3);flex-wrap:wrap}
-.wcard-list{display:flex;flex-direction:column;gap:2px}
-.wcard-ex{display:flex;justify-content:space-between;align-items:baseline;gap:var(--sp-3)}
-.wcard-ex>span:first-child{min-width:0;overflow-wrap:anywhere}
+.wcard-list{display:flex;flex-direction:column;color:var(--ink);overflow-wrap:anywhere}
 .wcard-meta{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-2);flex-wrap:wrap;font-size:var(--fs-sm);color:var(--pencil);border-top:var(--bw-thin) dashed var(--rule);padding-top:var(--sp-2)}
 .add-w{margin-top:var(--sp-5)}
-.cola{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp-4)}
+.cola>summary{display:flex;align-items:baseline;justify-content:space-between;gap:var(--sp-2)}
+.cola>summary::after{content:"+";font:400 var(--fs-xl)/1 var(--font-display);color:var(--red)}
+.cola[open]>summary::after{content:"−"}
+.cola-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--sp-4)}
 .cola h3{font:400 var(--fs-md)/1.2 var(--font-display);margin-bottom:var(--sp-1)}
 .cola h3 .hl{display:inline-block;transform:rotate(-1.5deg)}
 .cola p{font-size:var(--fs-sm)}
-.foot{margin-top:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-3);color:var(--pencil);font-size:var(--fs-sm)}
-.foot .toggle{font-size:var(--fs-md)}
-.sync{display:flex;align-items:center;gap:var(--sp-2)}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:0 0 auto}
+.foot{margin-top:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-3)}
 
 /* 5.2 treino */
 .go-next{margin-top:var(--sp-4)}
 .alldone{margin-top:var(--sp-4);font:400 var(--fs-xl)/1.2 var(--font-display)}
 .exlist{list-style:none;margin:var(--sp-5) 0 0;padding:0;display:flex;flex-direction:column}
-.ex{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:var(--sp-3);align-items:center;min-height:calc(var(--line) * 2.5);padding-block:var(--sp-1)}
-.ex-main{display:flex;flex-direction:column;gap:3px;min-width:0;padding-block:var(--sp-1)}
+.ex{display:grid;grid-template-columns:26px minmax(0,1fr) auto;gap:var(--sp-3);align-items:center;min-height:calc(var(--line) * 2);padding-block:var(--sp-1)}
+.ex-main{display:flex;flex-direction:column;gap:2px;min-width:0;padding-block:var(--sp-1)}
 .ex-name{font:700 var(--fs-lg)/1.2 var(--font-hand);color:var(--marker);overflow-wrap:anywhere}
-.ex.is-done .ex-name{text-decoration:line-through;text-decoration-color:var(--red);text-decoration-thickness:2px}
+.strike{background:linear-gradient(var(--red),var(--red)) 0 60%/0 2px no-repeat;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.ex.is-done .strike{background-size:100% 2px}
 .ex.is-next .ex-name::after{content:"  ← próximo";font:400 var(--fs-sm) var(--font-hand);color:var(--red)}
-.ex-info{font-size:var(--fs-sm);color:var(--ink);display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2)}
-.ex-hist{font-size:var(--fs-sm)}
+.ex-info{font-size:var(--fs-sm);color:var(--pencil)}
 .compare{display:flex;flex-direction:column;gap:var(--sp-2);margin-top:var(--sp-5)}
 .compare--final{transform:rotate(var(--tilt-b))}
-.compare--ex{margin-top:0}
-.compare-say{font-size:var(--fs-lg);line-height:1.5;color:var(--ink)}
+.end-w{margin-top:var(--sp-4);text-align:center}
+.compare-say{font-size:var(--fs-lg);line-height:1.5;color:var(--ink);padding-right:var(--sp-7)}
+.teacher{position:absolute;right:-10px;top:-26px;width:92px;height:92px;color:var(--red);transform:rotate(14deg);pointer-events:none;opacity:.88;z-index:1}
+.teacher-txt{font:400 13px var(--font-display);fill:currentColor;letter-spacing:1px}
+.teacher-face{fill:var(--card)}
+.teacher-smile{stroke:var(--card);stroke-width:2.2;stroke-linecap:round}
 
 /* 5.3 editor */
-.edlist{display:flex;flex-direction:column;gap:var(--sp-5)}
+.edlist{display:flex;flex-direction:column;gap:var(--sp-4)}
 .ed{display:flex;flex-direction:column;gap:var(--sp-3);padding-bottom:var(--sp-1)}
-.edlist>.ed:nth-child(even){border-radius:var(--r-b)}
 .ed-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;gap:var(--sp-2)}
 .ed-n{font:400 var(--fs-lg)/1.6 var(--font-display);color:var(--red)}
 .tech-pick{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
@@ -217,6 +229,7 @@ img{max-width:100%}
 .blocks{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:6px}
 .cell{position:relative;height:60px;border:var(--bw) solid var(--marker);border-radius:var(--r-b);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--card);padding-inline:3px;color:var(--ink)}
 .cell:nth-child(odd){border-radius:var(--r-a)}
+.cell.hand{border-radius:var(--hr);transform:rotate(var(--hrot,0deg))}
 .cell-n{font:700 var(--fs-xs)/1 var(--font-hand);letter-spacing:.05em;color:var(--pencil);white-space:nowrap}
 .cell.is-todo{border-style:dashed;border-color:var(--pencil);background:transparent}
 .cell.is-fail{color:var(--red)}
@@ -225,7 +238,9 @@ img{max-width:100%}
 .maxb{position:absolute;top:-10px;right:-4px;background:var(--paper);color:var(--red);font:700 var(--fs-xs)/1 var(--font-hand);padding:2px 4px;border-radius:4px;transform:rotate(6deg)}
 .q{font:400 var(--fs-lg)/1 var(--font-display);color:var(--red)}
 .stage{flex:1;display:flex;flex-direction:column;gap:var(--sp-3)}
-.plan{margin-top:var(--sp-2)}
+.rule>summary{display:inline-flex;align-items:center;gap:var(--sp-2);color:var(--ink);font-weight:700}
+.rule>summary::after{content:"?";display:inline-grid;place-items:center;width:20px;height:20px;border:var(--bw-thin) solid currentColor;border-radius:50%;font-size:var(--fs-xs);color:var(--pencil)}
+.rule>p{margin-top:var(--sp-2);font-size:var(--fs-sm);color:var(--pencil)}
 .plan b{color:var(--marker)}
 .load-row{display:flex;align-items:center;gap:6px}
 .load-in{flex:1;min-width:0;display:flex;align-items:baseline;justify-content:center;gap:var(--sp-1);border-bottom:var(--bw-thick) solid var(--marker)}
@@ -285,6 +300,7 @@ img{max-width:100%}
 .chart figcaption{margin-top:var(--sp-1)}
 .hist{margin-top:var(--sp-4)}
 .hist .reps b{color:var(--marker)}
+.hist-go{margin-top:var(--sp-5)}
 .del{color:var(--pencil);font:700 var(--fs-lg) var(--font-hand);padding:2px var(--sp-2)}
 
 /* 5.6 instalar */
@@ -298,27 +314,53 @@ img{max-width:100%}
 .iurl{font:400 var(--fs-lg)/1.2 var(--font-display);color:var(--marker);overflow-wrap:anywhere;user-select:all}
 
 /* =========================================================
-   6. Movimento: desenho à mão
+   6. Movimento
    ========================================================= */
-/* lápis contornando um cartão novo */
+/* 6.1 lápis contornando um cartão novo */
 .draw-svg{position:absolute;left:-12px;top:-12px;width:calc(100% + 24px);height:calc(100% + 24px);overflow:visible;pointer-events:none;z-index:var(--z-draw);transition:opacity .3s}
 .draw-svg.fade{opacity:0}
 .draw-line{fill:none;stroke:var(--marker);stroke-width:var(--bw);stroke-linecap:round;stroke-linejoin:round}
 .draw-svg .pencil{transition:opacity var(--dur)}
 .draw-svg .pencil.lift{opacity:0}
 .is-drawing{border-color:transparent!important;box-shadow:none!important}
-.is-drawing>:not(.draw-svg){opacity:0}
-.is-drawing.is-revealing>:not(.draw-svg){animation:write-in .5s var(--ease-out) forwards}
+.is-drawing>:not(.draw-svg):not(.teacher){opacity:0}
+.is-drawing.is-revealing>:not(.draw-svg):not(.teacher){animation:write-in .5s var(--ease-out) forwards}
 .is-drawing.is-revealing>:nth-child(2){animation-delay:70ms}
 .is-drawing.is-revealing>:nth-child(3){animation-delay:140ms}
 .is-drawing.is-revealing>:nth-child(4){animation-delay:210ms}
 .is-drawing.is-revealing>:nth-child(5){animation-delay:280ms}
-/* texto sendo escrito da esquerda pra direita */
 .write-in{animation:write-in .55s var(--ease-out) both}
-/* linha do campo sendo traçada */
 .field-wrap.line-in::after{animation:line-in .6s var(--ease-draw) both}
-/* lápis do campo rabiscando enquanto você digita */
 .field-pen.scribble svg{animation:scribble .22s ease-in-out}
+
+/* 6.2 borracha apagando (o desenho e o farelo vivem numa camada por cima) */
+.fx-layer{position:absolute;z-index:var(--z-draw);pointer-events:none}
+.fx-eraser{position:absolute;left:-30px;top:-30px;width:60px;height:60px;overflow:visible;filter:drop-shadow(1px 2px 0 rgba(0,0,0,.25));transition:opacity .25s}
+.fx-eraser.lift{opacity:0}
+.fx-crumb{position:absolute;width:5px;height:3px;border-radius:2px;background:var(--crumb)}
+
+/* 6.3 post-it descolando e um novo colando */
+.fx-peel{filter:drop-shadow(0 18px 14px rgba(0,0,0,.22))}
+.postit--in{animation:postit-in .42s var(--ease-out) both}
+
+/* 6.4 carimbo batendo e marca-texto passando */
+.stamp.is-new{animation:slam .5s .15s cubic-bezier(.25,1,.5,1) both}
+.hl--swipe,.stamp.is-new h3{animation:swipe .55s .2s var(--ease-out) both}
+.stamp.is-new h3{animation-delay:.55s}
+.teacher.is-new{animation:teacher-slam .45s 1.25s cubic-bezier(.25,1,.5,1) both}
+
+/* 6.5 exercício feito: risco vermelho e visto desenhados */
+.ex.just-done .strike{animation:strike .5s .55s var(--ease-draw) both}
+.ex.just-done .cb path{stroke-dasharray:1;stroke-dashoffset:1;animation:draw .3s 1s var(--ease-out) forwards}
+
+/* 6.6 folha virando ao trocar de tela (a espiral fica parada) */
+::view-transition-group(page){animation:none}
+::view-transition-image-pair(page){isolation:auto}
+::view-transition-old(page),::view-transition-new(page){animation:none;mix-blend-mode:normal;transform-origin:50% 0;backface-visibility:hidden}
+html[data-nav="fwd"]::view-transition-old(page){animation:flip-away .42s var(--ease-draw) both;z-index:2}
+html[data-nav="back"]::view-transition-new(page){animation:flip-back .42s var(--ease-draw) both;z-index:2}
+::view-transition-old(spiral),::view-transition-new(spiral),::view-transition-group(spiral){animation:none}
+::view-transition-old(root),::view-transition-new(root){animation:none}
 
 @keyframes write-in{from{opacity:1;clip-path:inset(-30% 100% -30% -4%)}to{opacity:1;clip-path:inset(-30% -4% -30% -4%)}}
 @keyframes line-in{from{transform:scaleX(0)}}
@@ -326,8 +368,15 @@ img{max-width:100%}
 @keyframes draw{to{stroke-dashoffset:0}}
 @keyframes pop{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}
 @keyframes sheet-up{from{transform:translateY(30px);opacity:0}to{transform:none;opacity:1}}
+@keyframes postit-in{from{transform:translateY(-36px) rotate(-7deg) scale(1.06);opacity:0}65%{transform:translateY(3px) rotate(-.5deg) scale(.99);opacity:1}to{transform:rotate(-1.1deg)}}
+@keyframes slam{from{transform:scale(1.7) rotate(-9deg);opacity:0}70%{transform:scale(.97) rotate(-.3deg);opacity:1}to{transform:rotate(var(--tilt-a))}}
+@keyframes teacher-slam{from{transform:scale(2.4) rotate(-20deg);opacity:0}70%{transform:scale(.94) rotate(16deg);opacity:.9}to{transform:rotate(14deg);opacity:.88}}
+@keyframes swipe{from{background-size:0% 100%}}
+@keyframes strike{from{background-size:0 2px}}
+@keyframes flip-away{from{transform:perspective(1400px) rotateX(0)}55%{filter:brightness(.88)}85%{opacity:1}to{transform:perspective(1400px) rotateX(100deg);opacity:0;filter:brightness(.8)}}
+@keyframes flip-back{from{transform:perspective(1400px) rotateX(100deg);opacity:0;filter:brightness(.8)}15%{opacity:1}45%{filter:brightness(.88)}to{transform:perspective(1400px) rotateX(0)}}
 
 @media (prefers-reduced-motion:reduce){
-  *{animation:none!important;transition:none!important}
-  .t .a,.circled .circ path{stroke-dashoffset:0}
+  *,::view-transition-old(page),::view-transition-new(page){animation:none!important;transition:none!important}
+  .t .a,.circled .circ path,.ex.just-done .cb path{stroke-dashoffset:0}
 }
