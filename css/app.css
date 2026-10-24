@@ -8,7 +8,7 @@
 html{font-size:18px;height:100%;background:var(--cover)}
 body{min-height:100%;margin:0;overflow-x:clip;color:var(--print);font:400 var(--fs-md)/var(--lh-body) var(--font-text);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;caret-color:var(--pen);
   padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
-  background:var(--cover) var(--cardboard)}
+  background:var(--cover) var(--cardboard);display:flow-root}
 button,input{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:0;padding:0;touch-action:manipulation;text-align:inherit}
 h1,h2,h3,p,ol,ul,figure{margin:0}
@@ -36,6 +36,8 @@ img{max-width:100%}
 @media (min-width:600px){ .spine::before,.spine::after{display:block} }
 .spine::before{top:150px}
 .spine::after{top:68%}
+/* a pilha: as folhas de baixo aparecem na borda da frente e no pé; fica parada quando a folha vira */
+.stack{position:absolute;inset:0;pointer-events:none;box-shadow:var(--sh-stack);view-transition-name:stack}
 #app{flex:1;display:flex;flex-direction:column;min-width:0}
 .crumbs{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-3);padding-block:0 var(--sp-2)}
 .crumbs>.runhead,.crumbs>.t-note{align-self:center}
@@ -48,7 +50,7 @@ img{max-width:100%}
   .sheet{margin-block:var(--sp-7);min-height:calc(100dvh - 2 * var(--sp-7));border-radius:var(--r-box);
     box-shadow:0 0 0 12px var(--cover),0 0 0 13px var(--cover-deep),var(--sh-desk)}
 }
-@media (max-width:599px){ .sheet{margin-inline:7px} }
+@media (max-width:599px){ .sheet{margin:0 7px 7px;min-height:calc(100vh - 7px);min-height:calc(100dvh - 7px)} }
 
 /* a capa aparece no topo da capa da caderneta (capa e entrar) */
 .cover-band{display:flex;align-items:center;gap:var(--sp-4);margin-inline:calc(-1 * (var(--spine) + var(--gutter))) calc(-1 * var(--gutter));
@@ -173,6 +175,13 @@ img{max-width:100%}
   transform:translate(var(--hx,0px),0) rotate(var(--hrot,-8deg));filter:url(#ink);opacity:var(--stamp-a)}
 .dstamp small{display:block;font-size:9px;letter-spacing:.08em;line-height:1.1}
 
+/* tinta velha: num registro antigo (--age de 0 a 1) a caneta puxa pro grafite fraco e o carimbo perde tinta.
+   No máximo fica 25% caneta e 10% papel, e o contraste continua acima de 4,5:1 */
+:root{--pen-0:var(--pen)}
+.aged{--pen:color-mix(in srgb,color-mix(in srgb,var(--pen-0) calc(100% - var(--age,0) * 75%),var(--print-2)) calc(100% - var(--age,0) * 10%),var(--paper))}
+.aged .link{--pen:var(--pen-0)}
+.aged .delta,.aged .hl{opacity:calc(var(--stamp-a) * (1 - var(--age,0) * .3))}
+
 /* 4.8 carimbo do veredito: retangular, borda dupla, na tinta do resultado */
 .stamp{display:flex;flex-direction:column;gap:var(--sp-2);border-color:var(--rule)}
 .stamp h3{align-self:flex-start;color:var(--c);font:800 var(--fs-xl)/1.05 var(--font-print);letter-spacing:.04em;text-transform:uppercase;padding:.16em .55em .1em;margin:2px 0 var(--sp-1);
@@ -205,6 +214,9 @@ img{max-width:100%}
 .compare-t th:last-child,.compare-t td:last-child{text-align:right}
 .compare-t .kr span{display:block;white-space:nowrap}
 .compare-t tbody tr:last-child>*{border-bottom:0}
+/* o valor de antes, riscado de caneta ao lado do novo (o risco sai torto por FX.hand) */
+.was{position:relative;display:inline-block;margin-right:.1em;text-decoration:none;color:color-mix(in srgb,var(--pen) 60%,var(--paper))}
+.was::after{content:"";position:absolute;left:-.16em;right:-.16em;top:44%;height:2px;background:var(--pen);transform:rotate(var(--hrot,-4deg))}
 
 /* 4.12 folha solta (de baixo) e aviso carimbado */
 .backdrop{position:fixed;inset:0;z-index:var(--z-sheet);background:color-mix(in srgb,var(--cover-deep) 62%,transparent);display:flex;align-items:flex-end;justify-content:center;padding:var(--sp-4);padding-bottom:calc(var(--sp-4) + env(safe-area-inset-bottom,0px))}
@@ -439,7 +451,7 @@ details>summary::-webkit-details-marker{display:none}
 /* 5.7 conta: a caderneta ainda fechada, com a etiqueta colada na capa */
 body[data-view="auth"] .sheet{background:var(--cover) var(--cardboard);box-shadow:var(--sh-cover-wear)}
 @media (min-width:600px){ body[data-view="auth"] .sheet{border-radius:var(--r-cover);box-shadow:var(--sh-cover-wear),var(--sh-desk)} }
-body[data-view="auth"] .spine{display:none}
+body[data-view="auth"] .spine,body[data-view="auth"] .stack{display:none}
 body[data-view="auth"] .sheet::before{content:"";position:absolute;inset:12px 10px;border:var(--bw) solid color-mix(in srgb,var(--on-cover) 16%,transparent);border-radius:var(--r-cover);box-shadow:var(--sh-emboss);pointer-events:none}
 .auth-top{flex-direction:column;align-items:flex-start;gap:var(--sp-4);margin-top:0;padding-block:var(--sp-7) var(--sp-5);background:none;box-shadow:none}
 .auth-top .logo{width:72px;height:72px}
@@ -602,13 +614,15 @@ textarea.lined:focus{outline:none;box-shadow:inset 3px 0 0 var(--pen)}
 .ex.just-done .strike{animation:strike .5s .5s var(--ease-draw) both}
 .ex.just-done .dstamp{animation:slam-d .4s 1s var(--ease-stamp) both}
 
-/* 6.6 folha virando ao trocar de tela: a página gira na lombada, os grampos ficam */
+/* 6.6 folha virando ao trocar de tela: a página gira na lombada, os grampos e a pilha ficam */
 ::view-transition-group(page){animation:none}
 ::view-transition-image-pair(page){isolation:auto;perspective:1600px}
 ::view-transition-old(page),::view-transition-new(page){animation:none;mix-blend-mode:normal;transform-origin:0 50%;backface-visibility:hidden}
 html[data-nav="fwd"]::view-transition-old(page){animation:turn-away .46s var(--ease-draw) both;z-index:2}
 html[data-nav="back"]::view-transition-new(page){animation:turn-back .46s var(--ease-draw) both;z-index:2}
 ::view-transition-old(spine),::view-transition-new(spine),::view-transition-group(spine){animation:none}
+::view-transition-group(stack),::view-transition-new(stack){animation:none}
+::view-transition-old(stack){display:none}
 ::view-transition-old(root),::view-transition-new(root){animation:none}
 ::view-transition-group(tabbar),::view-transition-old(tabbar),::view-transition-new(tabbar){animation:none}
 

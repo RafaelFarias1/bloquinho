@@ -71,6 +71,8 @@ const newId = () => Math.random().toString(36).slice(2, 9) + Date.now().toString
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const dayKey = (d = new Date()) => d.toLocaleDateString('sv-SE');
 const dateOf = k => new Date(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10), 12);
+/* tinta velha: 0 hoje, 1 com 30 dias ou mais */
+const ageOf = ts => +clamp((Date.now() - ts) / 864e5 / 30, 0, 1).toFixed(2);
 const fmt = n => n == null || n === '' ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 const fmtDate = ts => new Date(ts).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
 const fmtDay = k => k ? `${k.slice(8, 10)}/${k.slice(5, 7)}` : '';
@@ -398,7 +400,9 @@ function progressSay(cmp) {
   return `Mesmo volume do ${ref}. No próximo, busca 1 rep a mais.`;
 }
 const deltaChip = (p, sm = '') => { const d = dirOf(p); return `<span class="delta delta--${d}${sm}">${d === 'keep' ? 'igual' : fmtPct(p)}</span>`; };
-const loadPair = (p, t) => { const a = loadTxt(p) ?? '—', b = loadTxt(t) ?? '—'; return a === b ? b : `${a}→${b}`; };
+/* o valor de antes riscado de caneta ao lado do novo, como quem corrige o caderno */
+const was = (v, key) => `<span class="sr">de </span><s class="was" style="${FX.hand(key, 0.6)}">${v}</s><span class="sr"> para</span> `;
+const loadPair = (p, t) => { const a = loadTxt(p) ?? '—', b = loadTxt(t) ?? '—'; return a === b ? b : `${was(a, t.id + ':kg')}${b}`; };
 function resultOf(s) {
   if (isFree(s)) return 'free';
   if (s.below) return 'down';
@@ -566,7 +570,7 @@ const ICON = {
 const tally = FX.tally;
 /* carimbo datador: dia e mês, cada coisa carimbada torta do seu jeito */
 const MES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
-const dstamp = (d, key, cls = '') => `<span class="dstamp${cls}" style="${FX.hand(key)}" aria-hidden="true"><b>${d.getDate()}</b><small>${MES[d.getMonth()]}</small></span>`;
+const dstamp = (d, key, cls = '') => `<span class="dstamp${cls}" style="${FX.hand(key, 1, ageOf(d.getTime()))}" aria-hidden="true"><b>${d.getDate()}</b><small>${MES[d.getMonth()]}</small></span>`;
 /* o descanso e o cronômetro são um carimbo redondo: texto em cima, texto embaixo e duas estrelas */
 const star = (cx, cy, R = 5.5, r = 2.3) => 'M' + Array.from({ length: 10 }, (_, i) => {
   const a = -Math.PI / 2 + i * Math.PI / 5, k = i % 2 ? r : R;
@@ -849,7 +853,8 @@ function compareCard(w, cmp, final, s) {
     const time = r.t.tech === 'time';
     const kr = (kg, reps) => `<td class="kr">${kg != null ? `<span>${kg} kg</span>` : ''}<span>${reps}</span></td>`;
     if (!r.p) return `<tr><th scope="row">${name}</th>${kr(time ? null : loadTxt(r.t) ?? '—', time ? `${fmt(r.t.total)} min` : `${fmt(r.t.total)} reps`)}<td><span class="t-muted">1ª vez</span></td></tr>`;
-    const reps = time ? `${fmt(r.p.total)}→${fmt(r.t.total)} min` : `${fmt(r.p.total)}→${fmt(r.t.total)} reps`;
+    const pair = (a, b, unit) => `${a === b ? '' : was(a, `${r.t.id}:${unit}`)}${b} ${unit}`;
+    const reps = pair(fmt(r.p.total), fmt(r.t.total), time ? 'min' : 'reps');
     return `<tr><th scope="row">${name}</th>${kr(time ? null : loadPair(r.p, r.t), reps)}<td>${deltaChip(r.d.pct)}</td></tr>`;
   }).join('');
   const teacher = final && cmp.pct != null && dirOf(cmp.pct) === 'up' ? FX.teacherStamp(fresh.closed ? ' is-new' : '') : '';
@@ -1119,7 +1124,7 @@ function viewHistory() {
     const mid = l.tech === 'time'
       ? `<td>${fmt(l.total)}</td><td>${l.km != null ? fmt(l.km) : '—'}</td>`
       : `<td>${loadTxt(l) ?? '—'}</td><td class="reps">${(l.reps || []).join('·')} <b>= ${fmt(l.total)}</b></td>`;
-    return `<tr id="log-${l.id}">
+    return `<tr id="log-${l.id}" class="aged" style="--age:${ageOf(l.ts)}">
       <td>${fmtDate(l.ts)}</td>
       ${mid}
       <td>${p ? deltaChip(exDelta(l, p).pct) : '<span class="t-muted">—</span>'}</td>
@@ -1170,7 +1175,7 @@ function viewCalendar() {
     if (list.length) trained++;
     const cls = `${list.length ? ' is-on' : ''}${k === today ? ' is-today' : ''}${k === sel ? ' is-sel' : ''}${k > today ? ' is-future' : ''}`;
     cells += `<button class="cal-day${cls}" data-a="cal-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${fmtLong(dateOf(k))}${list.length ? `, ${plural(list.length, 'treino', 'treinos')}` : ''}">
-      <span class="cal-n"${list.length ? ` style="${FX.hand(k + ':cal', .7)}"` : ''}>${d}</span>
+      <span class="cal-n"${list.length ? ` style="${FX.hand(k + ':cal', .7, ageOf(dateOf(k).getTime()))}"` : ''}>${d}</span>
       <span class="dots" aria-hidden="true">${list.slice(0, 3).map(s => `<i class="dot dot--${resultOf(s)}"></i>`).join('')}</span>
     </button>`;
   }
@@ -1200,7 +1205,7 @@ function sessCard(s) {
   if (isFree(s)) {
     const d = s.details && s.details.tipo === 'bjj' ? s.details : null;
     const golpes = d ? d.golpes || [] : [];
-    return `<article class="card card--flat hand sess${d ? ' sess--bjj' : ''}" style="${FX.hand(s.id, 0.4)}">
+    return `<article class="card card--flat hand sess aged${d ? ' sess--bjj' : ''}" style="${FX.hand(s.id, 0.4)};--age:${ageOf(s.startedAt)}">
     <div class="sess-head"><h3>${esc(s.name || 'Atividade')}</h3><span class="delta delta--sm" style="--c:var(--free)">${s.minutes ? `${fmt(s.minutes)} min` : 'feito'}</span></div>
     ${d ? `<p class="bjj-kimono">${d.kimono === false ? 'sem kimono' : 'de kimono'}</p>
     <div class="bjj-row"><span class="t-label">Rolas</span><span class="bjj-tally">${d.rolas ? tally(d.rolas, 0, s.startedAt % 97) : '<span class="t-muted">nenhum</span>'}</span>${d.rolas ? `<b>${d.rolas}</b>` : ''}</div>
@@ -1213,7 +1218,7 @@ function sessCard(s) {
   const doneN = new Set(logs.map(l => l.eid)).size;
   const meta = `às ${fmtTime(s.startedAt)} · ${w ? `${doneN} de ${w.exercises.length} exercícios` : plural(doneN, 'exercício', 'exercícios')}${s.closedAt ? '' : ' · em andamento'}`;
   const latest = [...new Map(logs.map(l => [l.eid, l])).values()];
-  return `<article class="card card--flat hand sess" style="${FX.hand(s.id, 0.4)}">
+  return `<article class="card card--flat hand sess aged" style="${FX.hand(s.id, 0.4)};--age:${ageOf(s.startedAt)}">
     <div class="sess-head"><h3>${esc(w?.name || s.name || 'Treino')}</h3>${cmp && cmp.pct != null ? deltaChip(cmp.pct, ' delta--sm') : ''}</div>
     <p class="t-note">${meta}</p>
     <ul class="sess-list">${latest.map(l => `<li><b>${esc(l.name || 'Exercício')}</b> <span>${esc(logSummary(l, true))}</span></li>`).join('')}</ul>

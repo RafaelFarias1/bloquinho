@@ -246,6 +246,7 @@ O mundo recusa o app de academia de cards escuros, anel neon e gradiente. Profun
 - Capa de papelão azul em volta de tudo; em tela larga, a caderneta fica sobre uma mesa.
 - Três temas (automático, claro, escuro), e o escuro é a mesma caderneta: capa marinho, página grafite, tintas claras. Nenhum componente define cor só para um tema.
 - Abas de papel: as seções saem da borda de baixo da capa, as ações da página pendem da borda de cima da folha.
+- A caderneta tem volume e idade: as folhas de baixo aparecem na borda, o valor corrigido fica riscado ao lado do novo e a tinta dos registros antigos desbota.
 
 ## Colors
 
@@ -291,6 +292,8 @@ O tema é escolhido na tela Conta (automático, claro ou escuro) e vai junto com
 
 **A Regra da Tinta com Dono.** Caneta azul é só do usuário; violeta é só do que aconteceu. Se um texto não foi escrito nem carimbado, ele é impresso em grafite.
 
+**A Regra da Tinta Velha.** Registro com data envelhece: a idade (`--age`) vai de 0 hoje a 1 com 30 dias ou mais (`ageOf` em `js/app.js`). Num quadro antigo (classe `.aged` com `--age` no `style`: linha do histórico, ficha do dia no calendário) a caneta puxa pro grafite fraco, no máximo um quarto de caneta e três quartos de `print-2`, com 10% de papel, e os carimbos de dentro perdem até 30% da tinta. Carimbo de data solto (datador, dia do calendário) desbota pelo terceiro argumento de `FX.hand(chave, força, idade)`. No máximo o contraste da caneta velha continua acima de 4,5:1. Link dentro de quadro antigo não envelhece: é o caderno falando, não tinta sua.
+
 ## Typography
 
 **Impresso:** Barlow Condensed (com Arial Narrow, Roboto Condensed) para títulos, rótulos, botões, números e carimbos.
@@ -314,6 +317,8 @@ A base é `html{font-size:18px}`, então 1rem = 18px.
 
 Faixa de reps: na célula planejada vai com meia-risca ("8–12"), na frase vai por extenso ("8 a 12 reps"). Carga que mudou entre séries também usa meia-risca ("40–45").
 
+Riscar e reescrever: quando a caneta compara o de antes com o de agora (a tabela de progresso do treino), não há seta. O valor de antes sai riscado (`.was`): caneta a 60% sobre o papel com um risco de 2px de caneta por cima, um pouco mais comprido que o número e girado por `FX.hand(chave, 0.6)`; o valor novo vem em seguida, inteiro. Para o leitor de tela fica "de 26 para 27 kg". Frase impressa do app (o resumo embaixo do veredito) continua com a seta.
+
 ### Named Rules
 **A Regra do `--hand-k`.** A Nanum Pen Script tem olho pequeno, então todo tamanho de caneta é multiplicado por `--hand-k` (1.36) para ler igual ao impresso ao lado. Nunca use a fonte de caneta num tamanho cru da escala.
 
@@ -323,7 +328,9 @@ Faixa de reps: na célula planejada vai com meia-risca ("8–12"), na frase vai 
 
 ## Layout
 
-Uma coluna só: a folha tem no máximo 600px, centrada. A margem esquerda soma a lombada (`--spine`, 14px) e o respiro (`--gutter`, 18px); a direita é só o respiro. A partir de 600px, respiro 28px, lombada 20px, os grampos aparecem e a folha ganha 48px de margem vertical sobre a mesa, com a capa de 12px aparecendo em volta. Abaixo de 600px, a folha fica a 7px das bordas e a capa de papelão aparece nas laterais.
+Uma coluna só: a folha tem no máximo 600px, centrada. A margem esquerda soma a lombada (`--spine`, 14px) e o respiro (`--gutter`, 18px); a direita é só o respiro. A partir de 600px, respiro 28px, lombada 20px, os grampos aparecem e a folha ganha 48px de margem vertical sobre a mesa, com a capa de 12px aparecendo em volta. Abaixo de 600px, a folha fica a 7px das bordas (dos lados e embaixo) e a capa de papelão aparece em volta. O `body` é `display:flow-root` para a margem de baixo da folha não atravessar e sumir da rolagem: o fim da página sempre mostra o pé da folha.
+
+Embaixo da folha há a pilha (`.stack`, um irmão da lombada dentro de `.sheet`): três folhas de baixo, cada uma um filete de papel e um filete `rule`, aparecendo 2, 4 e 6px na borda da frente e 2, 4 e 5px no pé (`--sh-stack`). Na tela de entrar ela some, porque ali a caderneta está fechada.
 
 Espaço sai de `--sp-1` a `--sp-7` (4 a 48px), sempre via `gap` entre irmãos. Títulos de seção abrem com 32px acima e 12px abaixo; listas de fichas usam 24px entre elas. A entrelinha da caderneta (`--line`, 28px) é a altura das linhas de exercício e do pautado do gráfico.
 
@@ -351,6 +358,7 @@ A página é plana; profundidade é só de papel. A folha inteira tem uma sombra
 - **Adesivo** (`--sh-sticker`: `0 1px 2px rgba(0,0,0,.35)`): o adesivo do logo e a etiqueta "Nome" colados na capa.
 - **Etiqueta** (`--sh-label`: `0 1px 2px rgba(0,0,0,.4), 0 2px 0 rgba(0,0,0,.08)`): a etiqueta de papel do formulário de entrar, colada na capa.
 - **Grampo** (`--staple-metal` de fundo, `--sh-staple`): os dois grampos de metal na lombada; a lombada em si é `--spine-shade` com o vinco `--spine-crease`.
+- **Pilha de folhas** (`--sh-stack`): as folhas de baixo na borda da frente e no pé da folha, em sombras sólidas de papel (cada vez um pouco mais escuro, misturado com `cover-deep`) separadas por filetes `rule`. Não é sombra de luz: é papel.
 
 ### Named Rules
 **A Regra do Papel.** Só levanta o que é papel tocável ou solto: folha, botão, ficha, post-it, aviso. Quadro de formulário fica rente à página. A aba aberta sobe 5px da barra porque é a folha que está à frente; as outras ficam baixas.
@@ -397,7 +405,7 @@ Impressos, retos, firmes.
 - **Área pautada (`textarea.lined`):** para texto corrido do usuário. Sem caixa nem raio, caneta a 1rem × `--hand-k` com entrelinha `--line` (28px) sobre um pautado de 1px `rule` desenhado no fundo que rola junto com o texto; no mínimo quatro linhas. No foco, em vez da linha engrossar, uma barra de caneta de 3px aparece por dentro à esquerda.
 
 ### Navigation
-Navegar é usar as abas da caderneta e virar a folha. A troca de tela gira a página na lombada com View Transitions (folha vai a −96° em 460ms; a lombada, os grampos e a barra de abas não se movem). Cada tela tem uma profundidade na caderneta (`depthOf`: entrar e Caderno 0, Calendário 0.4, Conta 0.8, treino 1, editor 1.5, as demais 2): indo mais fundo a folha vira para a frente, voltando ela vira para trás, e só entre telas de mesma profundidade não há virada. Assim toda troca de aba vira a página, para a frente rumo à aba da direita e para trás rumo à da esquerda. Foco do teclado: contorno de 2.5px em caneta, 3px afastado.
+Navegar é usar as abas da caderneta e virar a folha. A troca de tela gira a página na lombada com View Transitions (folha vai a −96° em 460ms; a lombada, os grampos, a pilha de folhas e a barra de abas não se movem). Cada tela tem uma profundidade na caderneta (`depthOf`: entrar e Caderno 0, Calendário 0.4, Conta 0.8, treino 1, editor 1.5, as demais 2): indo mais fundo a folha vira para a frente, voltando ela vira para trás, e só entre telas de mesma profundidade não há virada. Assim toda troca de aba vira a página, para a frente rumo à aba da direita e para trás rumo à da esquerda. Foco do teclado: contorno de 2.5px em caneta, 3px afastado.
 - **Gestos:** nas três telas principais, arrastar o dedo na horizontal passa para a aba ao lado (para a esquerda vai à próxima, para a direita volta), igual a folhear. Conta como gesto só o arraste de pelo menos 60px, quase horizontal (o vertical não passa de 60% do horizontal) e em menos de 700ms; não vale começando em campo, área de escrever ou tabela rolável (`.table-wrap`), nem com folha de baixo aberta. Nas telas de dentro, o arraste para a direita que começa a até 48px da borda esquerda aperta a aba pendurada "voltar".
 - **Abas de índice (barra embaixo):** Caderno, Calendário, Conta, só nessas três telas. Uma faixa de papelão da capa (`cover` com `--cardboard`) de onde sobem três abas de papel `paper-band` com ícone de 22px e rótulo impresso (Barlow Condensed 700, 0.875rem) em impressão fraca. A aba aberta é papel (`paper`), sobe 5px, fica em caneta e ganha um filete de caneta de 3px no alto. Ao apertar, desce 1px.
 - **Abas penduradas (topo da folha):** "voltar" à esquerda (ícone de seta) e a ação da página à direita ("editar", ícone de caneta), em `paper-band`, borda `rule` de 1.5px sem a de cima, 46px de altura no mínimo, texto impresso grafite e ícone em caneta. Ao apertar, viram papel e sobem 2px. Usadas no treino, editor, série e histórico; o Calendário não tem "voltar" porque a barra navega.
@@ -451,6 +459,8 @@ Tudo em `js/fx.js`, com cara de mão mexendo na caderneta: lápis contorna o qua
 - **Do** fechar cada tela principal com o rodapé de folha (`.folio`) e mostrar dado do usuário como campo já preenchido: rótulo impresso, valor de caneta na linha.
 - **Do** escrever em caneta (`--font-hand` × `--hand-k`, cor `--pen`) tudo que veio do usuário, e só isso.
 - **Do** carimbar em violeta (`--stamp`, `#ink`, opacidade `--stamp-a`, girado por `FX.hand`) o que aconteceu: datas, descanso, avisos, vereditos.
+- **Do** passar a idade do registro a todo carimbo de data (`FX.hand(chave, força, ageOf(ts))`) e marcar `.aged` com `--age` no quadro que mostra registro antigo de caneta.
+- **Do** riscar de caneta (`.was`) o valor de antes quando a caneta compara antes e agora, em vez de seta.
 - **Do** usar `--up` / `--keep` / `--down` / `--free` para qualquer resultado, ponto de gráfico ou bolinha do calendário.
 - **Do** manter quadros retos (3px) com linhas `rule`, e cabeçalhos de quadro na faixa `paper-band`.
 - **Do** dar a cada tela no máximo um botão principal da capa (`--go`), pintado com o token `--go`, não com `--cover`.

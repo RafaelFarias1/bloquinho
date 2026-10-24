@@ -71,6 +71,8 @@
   --spine-crease:rgba(18,30,68,.08);
   --staple-metal:linear-gradient(90deg,#7d8596,#eef0f4 40%,#a7adba 70%,#7d8596);
   --sh-staple:0 0 0 1px rgba(0,0,0,.18),1px 2px 2px rgba(0,0,0,.3);
+  /* as folhas de baixo aparecendo na borda da frente e no pé da folha: papel, filete, papel, filete */
+  --sh-stack:2px 2px 0 -1px color-mix(in srgb,var(--paper) 95%,var(--cover-deep)),2px 2px 0 0 var(--rule),4px 4px 0 -1px color-mix(in srgb,var(--paper) 91%,var(--cover-deep)),4px 4px 0 0 var(--rule),6px 5px 0 -1px color-mix(in srgb,var(--paper) 87%,var(--cover-deep)),6px 5px 0 0 color-mix(in srgb,var(--rule) 80%,var(--cover-deep));
 
   /* movimento */
   --dur-fast:120ms; --dur:250ms; --dur-draw:750ms;

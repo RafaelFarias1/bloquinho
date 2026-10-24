@@ -222,11 +222,12 @@ function seeded(key) {
 }
 const between = (r, a, b) => a + (b - a) * r();
 /* carimbo: cada coisa carimbada cai torta do seu jeito, sempre do mesmo jeito pra mesma coisa.
-   k = quanto varia: 1 nos carimbos de data, menos nos pequenos */
-function hand(key, k = 1) {
+   k = quanto varia: 1 nos carimbos de data, menos nos pequenos.
+   age = tinta velha, de 0 (hoje) a 1 (30 dias ou mais): o carimbo antigo perde até 30% da tinta */
+function hand(key, k = 1, age = 0) {
   const r = seeded(key);
   const rot = (r() < 0.5 ? -1 : 1) * between(r, 3, 11) * k;
-  return `--hrot:${rot.toFixed(1)}deg;--hx:${(between(r, -2.5, 2.5) * k).toFixed(1)}px;--stamp-a:${between(r, 0.64, 0.94).toFixed(2)}`;
+  return `--hrot:${rot.toFixed(1)}deg;--hx:${(between(r, -2.5, 2.5) * k).toFixed(1)}px;--stamp-a:${(between(r, 0.64, 0.94) * (1 - age * 0.3)).toFixed(2)}`;
 }
 /* a caderneta não leva fita adesiva */
 function tapes() { return ''; }
