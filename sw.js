@@ -1,6 +1,6 @@
 // Bloquinho: deixa o app abrir sem internet (academia com sinal ruim).
-const VERSION = 'bloquinho-v9';
-const SHELL = ['/', '/css/tokens.css?v=9', '/css/app.css?v=9', '/js/fx.js?v=9', '/js/app.js?v=9', '/manifest.webmanifest', '/logo.svg', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
+const VERSION = 'bloquinho-v10';
+const SHELL = ['/', '/css/tokens.css?v=10', '/css/app.css?v=10', '/js/vendor/supabase.js?v=10', '/js/config.js?v=10', '/js/cloud.js?v=10', '/js/fx.js?v=10', '/js/app.js?v=10', '/manifest.webmanifest', '/logo.svg', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -30,6 +30,7 @@ self.addEventListener('fetch', e => {
   }
 
   // Arquivos do app e fontes: responde do cache e atualiza em segundo plano.
+  // A conta (Supabase) fica em outro endereço e nunca passa pelo cache.
   const cacheable = url.origin === self.location.origin || url.host === 'fonts.googleapis.com' || url.host === 'fonts.gstatic.com';
   if (!cacheable) return;
   e.respondWith(

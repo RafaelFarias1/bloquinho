@@ -1,6 +1,6 @@
 # Padrão de design do Bloquinho
 
-O Bloquinho é um **caderno de academia**: folha pautada, margem vermelha, espiral em cima, caneta azul, canetão preto, marca-texto e post-it. Tudo que aparece na tela tem que parecer algo que você faria num caderno de papel.
+O Bloquinho é um **caderno de treino**: folha pautada, margem vermelha, espiral em cima, caneta azul, canetão preto, marca-texto e post-it. Tudo que aparece na tela tem que parecer algo que você faria num caderno de papel.
 
 Os valores ficam em [`css/tokens.css`](css/tokens.css). Os componentes ficam em [`css/app.css`](css/app.css). Nenhuma regra de componente usa cor, tamanho ou espaço solto: tudo sai de um token.
 
@@ -17,7 +17,7 @@ Cada cor tem um papel e só aparece nesse papel.
 | `--marker` | canetão: títulos, contornos, números grandes | títulos, bordas, cronômetro |
 | `--pencil` | lápis: legendas e notas | rótulos em caixa alta, datas |
 | `--red` | caneta vermelha: correção, perigo, destaque | "apagar", falha no bloco, círculo em volta do progresso |
-| `--hl-y` `--hl-g` `--hl-p` | marca-texto | botões, etiquetas de resultado |
+| `--hl-y` `--hl-g` `--hl-p` `--hl-b` `--hl-o` | marca-texto | botões, etiquetas de resultado; azul marca séries normais e outras atividades, laranja marca cardio |
 | `--postit` | post-it | botão gigante da série, avisos |
 
 **Semântica fixa (veredito e progresso):**
@@ -26,7 +26,8 @@ Cada cor tem um papel e só aparece nesse papel.
 |---|---|---|
 | `--up` | sobe a carga / progrediu | marca-texto verde |
 | `--keep` | mantém / igual | marca-texto amarelo |
-| `--down` | baixa a carga / caiu | marca-texto rosa |
+| `--down` | baixa a carga / caiu / abaixo do normal | marca-texto rosa |
+| `--free` | outra atividade (fora dos treinos) | marca-texto azul |
 
 Texto em cima de marca-texto ou post-it é sempre `--on-hl`, nos dois temas.
 
@@ -87,6 +88,12 @@ Classes prontas: `.t-hero`, `.t-title`, `.t-section`, `.t-card`, `.t-label`, `.t
 | Risquinhos | `tally()` | contagem de reps: 4 riscos e o 5º cortando |
 | Folha de baixo | `.backdrop` + `.card.bsheet` | perguntas rápidas e instruções |
 | Aviso | `.toast` | confirmação depois de uma ação ("Anotado!") |
+| Etiqueta de escolha | `.tag` (+ `aria-pressed`) | escolha rápida de vários: motivos da queda, atividades. Marcada fica rosa |
+| Grupo de campo | `.fgroup` | rótulo `.t-label` + campo, nas folhas de baixo e na conta |
+| Semana | `.week` + `.wd` | a semana na capa: uma caixinha por dia, com visto vermelho quando treinou |
+| Calendário | `.cal-grid` + `.cal-day` | o mês: dia treinado ganha círculo de caneta vermelha e um ponto `.dot` por treino, na cor do resultado |
+| Cartão do dia | `.card.sess` | o que foi feito num dia do calendário, com `.why` (o motivo) quando ficou abaixo |
+| Conta | `.card.auth` | entrar e criar conta, com as abas no estilo `.tp` |
 
 ## 5. Movimento
 
@@ -110,6 +117,7 @@ Movimento desacelera suave, sem quicar: um carimbo bate e para. Durações: `--d
 ## 6. Escrita
 
 - Português do dia a dia, em segunda pessoa e no tom de um parceiro de treino: "Toca no post-it", "Bola pra frente", "Tá na zona certa".
-- O botão diz exatamente o que acontece: "Anotar no caderno", "Começar a série".
-- Comparação sempre com referência: "Você progrediu +19% em relação ao treino de 11/10". Queda vem acompanhada de contexto, nunca de bronca.
+- O botão diz exatamente o que acontece: "Anotar no caderno", "Começar a 1ª série", "Anotar no calendário".
+- Bloco é masculino e série é feminina: "próximo bloco, o último", "próxima série, a última".
+- Comparação sempre com referência: "Você progrediu +19% em relação ao treino de 11/10". Queda vem acompanhada de contexto, nunca de bronca: "O que rolou hoje? … Acontece. Anota o motivo pra lembrar depois."
 - Números em formato brasileiro: `22,5 kg`, `1.240`.
