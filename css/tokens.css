@@ -1,76 +1,111 @@
-/* Bloquinho: design tokens. Toda cor, tamanho e espaço do app sai daqui. Regras de uso em DESIGN.md. */
+/* Bloquinho: design tokens. Toda cor, tamanho e espaço do app sai daqui. Regras em DESIGN.md.
+   O mundo é uma caderneta: capa de papelão, formulário impresso, caneta azul e carimbo violeta. */
 :root{
   color-scheme:light;
 
-  /* cor: papel e tinta */
-  --paper:#fbfcf7;      /* folha pautada */
-  --card:#ffffff;       /* cartão colado na folha */
-  --desk:#d8dde5;       /* mesa atrás do caderno */
-  --rule:#c3d8ef;       /* pauta azul */
-  --margin:#f0959b;     /* margem vermelha */
-  --wire:#8a92a2;       /* espiral */
-  --ink:#213f95;        /* caneta azul: texto corrido */
-  --marker:#1b1c21;     /* canetão: títulos, contornos, números */
-  --pencil:#646b7d;     /* lápis: legendas e notas */
-  --red:#cf2f3b;        /* caneta vermelha: correção, perigo, destaque */
-  --ok:#2f9a4c;
+  /* cor: a caderneta */
+  --cover:#1f3c88;      /* capa de papelão azul */
+  --cover-deep:#172e6c; /* dobra e sombra da capa */
+  --on-cover:#eef2fb;   /* letra impressa em cima da capa */
+  --paper:#f2f4ec;      /* página: branco esverdeado de gráfica */
+  --paper-2:#e6eadd;    /* faixa impressa de formulário (cabeçalho de quadro) */
+  --print:#283044;      /* impressão: texto do formulário */
+  --print-2:#59647c;    /* impressão fraca: rótulos e notas */
+  --rule:#b0bcd3;       /* linhas e quadros impressos */
+  --rule-2:#d2d9e5;     /* linha fina de preencher */
+  --pen:#2348c4;        /* caneta esferográfica azul: tudo que você escreve */
+  --stamp:#6b3fa6;      /* carimbo violeta: datas, descanso, ações */
+  --ok:#1e7f49;         /* carimbo verde */
+  --red:#cf3528;        /* caneta vermelha: correção e perigo */
+  --orange:#b0560f;     /* carimbo laranja */
+  --postit:#ffe36e; --fold:#e5c43f; --on-postit:#2b2510;
+  --star:#f4b81e;       /* estrelinha dourada */
+  --crumb:#cdb8bf;      /* farelo de borracha */
+  --shade:rgba(18,30,68,.2);
+  --desk:#cdd3c6;       /* mesa onde a caderneta fica (só em tela larga) */
+  --staple-a:1;
+  --go:#1f3c88;         /* botão principal: um pedaço da capa */
+  /* papelão da capa: manchas largas, fibras curtas e pintas; uma folha grande que não repete dentro da capa */
+  --cardboard:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1600'%3E%3Cfilter id='m' x='0' y='0' width='100%' height='100%'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 .05 0 0 0 -1.5 .95'/%3E%3C/filter%3E%3Cfilter id='f' x='0' y='0' width='100%' height='100%'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.22 .6' numOctaves='2' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 3.2 -2.05'/%3E%3C/filter%3E%3Cfilter id='s' x='0' y='0' width='100%' height='100%'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='1' seed='9' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 3.6 -2.4'/%3E%3C/filter%3E%3Crect width='1600' height='1600' filter='url(%23m)'/%3E%3Crect width='1600' height='1600' filter='url(%23f)' opacity='.1'/%3E%3Crect width='1600' height='1600' filter='url(%23s)' opacity='.26'/%3E%3C/svg%3E");
 
-  /* marca-texto (sempre com texto --on-hl por cima) */
-  --hl-y:#fff25e; --hl-g:#aef07f; --hl-p:#ffa6d3;
-  --hl-b:#9fdcff; --hl-o:#ffc27a;   /* azul: séries normais e outras atividades; laranja: cardio */
-  --under:#fff25e;      /* grifo embaixo de títulos */
-  --on-hl:#1b1c21;
-  --postit:#ffe66d; --fold:#e3c341;
-  --tape:rgba(212,200,158,.62);
-  --drop:#1b1c21;       /* sombra de desenho animado */
-  --crumb:#cbb9be;      /* farelo de borracha */
+  /* semântica do veredito e do progresso: cada uma é uma tinta de carimbo */
+  --up:var(--ok); --keep:var(--stamp); --down:var(--orange); --free:var(--pen);   /* vermelho fica só pra corrigir e apagar */
 
-  /* semântica do veredito e do progresso */
-  --up:var(--hl-g); --keep:var(--hl-y); --down:var(--hl-p); --free:var(--hl-b);
+  /* tipografia: impresso (Barlow), caneta (Nanum Pen Script), carimbo (Barlow Condensed pesada) */
+  --font-print:"Barlow Condensed","Arial Narrow","Roboto Condensed",sans-serif;
+  --font-text:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-hand:"Nanum Pen Script","Bradley Hand","Segoe Print",cursive;
+  --hand-k:1.36;        /* a letra de mão tem olho pequeno: escreve maior pra ler igual */
+  --fs-xs:.75rem; --fs-sm:.875rem; --fs-md:1rem; --fs-lg:1.25rem; --fs-xl:1.5rem;
+  --fs-2xl:2rem; --fs-3xl:2.75rem; --fs-hero:4.5rem; --fs-timer:6.25rem;
+  --lh-tight:1.08; --lh-body:1.45;
 
-  /* tipografia */
-  --font-display:"Permanent Marker","Marker Felt","Chalkboard SE","Comic Sans MS",cursive;
-  --font-hand:"Kalam","Bradley Hand","Chalkboard SE","Segoe Print","Comic Sans MS",cursive;
-  --fs-xs:.72rem; --fs-sm:.86rem; --fs-md:1rem; --fs-lg:1.2rem; --fs-xl:1.5rem;
-  --fs-2xl:1.9rem; --fs-3xl:2.5rem; --fs-hero:3.6rem; --fs-timer:5.6rem;
-  --lh-tight:1.12; --lh-body:1.42;
-  --track-label:.09em;
-
-  /* espaço: a pauta (32px) é a unidade maior */
+  /* espaço: a linha da caderneta (28px) é a unidade maior */
   --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:48px;
-  --line:32px; --mx:26px;
+  --line:28px; --gutter:18px; --spine:14px;
 
-  /* forma */
-  --bw-thin:1.5px; --bw:2px; --bw-thick:2.5px;
-  --r-a:255px 14px 225px 14px/14px 225px 14px 255px;   /* contorno à mão, variação A */
-  --r-b:14px 225px 14px 255px/255px 14px 225px 14px;   /* contorno à mão, variação B */
-  --r-sm:6px; --r-hl:3px 9px 4px 10px;
-  --sh-1:2px 2px 0 var(--drop); --sh-2:3px 3px 0 var(--drop); --sh-3:4px 5px 0 var(--drop);
-  --tilt-a:-.6deg; --tilt-b:.5deg; --tilt-label:-2deg;
+  /* forma: formulário é reto; só capa, etiqueta e carimbo redondo curvam */
+  --bw-hair:1px; --bw:1.5px; --bw-thick:2.5px;
+  --r-box:3px; --r-cover:12px; --r-tab:9px;
+  --sh-page:0 1px 2px rgba(18,30,68,.18),0 18px 34px -14px rgba(18,30,68,.45);
+  --sh-lift:0 1px 1px rgba(18,30,68,.14),0 6px 14px -6px var(--shade);
+  --sh-press:inset 0 2px 5px rgba(10,20,50,.28);
+  --stamp-a:.88;        /* tinta do carimbo: nunca 100% */
+  --r-stamp:5px;        /* carimbo retangular e aviso carimbado */
+  --r-sticker:16px;     /* adesivo do logo */
+  --sticker-edge:#fbfcf6;
+  /* sombras de material: papel colado, capa gasta, caderneta na mesa, grampo */
+  --sh-sticker:0 1px 2px rgba(0,0,0,.35);
+  --sh-label:0 1px 2px rgba(0,0,0,.4),0 2px 0 rgba(0,0,0,.08);
+  --sh-desk:0 34px 60px -22px rgba(10,18,40,.55);
+  --sh-cover-band:inset 0 1px 0 rgba(255,255,255,.08),inset 0 -10px 14px -10px rgba(0,0,0,.55),inset 0 0 40px rgba(0,0,0,.18);
+  --sh-cover-wear:inset 0 0 70px rgba(0,0,0,.32);
+  --sh-emboss:0 1px 0 rgba(0,0,0,.25),inset 0 1px 0 rgba(0,0,0,.25);
+  --sh-tabbar:0 -1px 0 rgba(0,0,0,.22),0 -12px 18px -14px rgba(10,18,40,.6);
+  --sh-tab-open:0 4px 7px -4px rgba(0,0,0,.4);
+  --sh-tab-hang:0 4px 6px -5px var(--shade);
+  --sh-postit:drop-shadow(0 10px 8px rgba(18,30,68,.2));
+  --sh-peel:drop-shadow(0 18px 14px rgba(18,30,68,.24));
+  --sh-eraser:drop-shadow(1px 2px 0 rgba(0,0,0,.25));
+  --spine-shade:linear-gradient(90deg,rgba(18,30,68,.2),rgba(18,30,68,.05) 60%,transparent);
+  --spine-crease:rgba(18,30,68,.08);
+  --staple-metal:linear-gradient(90deg,#7d8596,#eef0f4 40%,#a7adba 70%,#7d8596);
+  --sh-staple:0 0 0 1px rgba(0,0,0,.18),1px 2px 2px rgba(0,0,0,.3);
 
   /* movimento */
   --dur-fast:120ms; --dur:250ms; --dur-draw:750ms;
-  --ease-out:cubic-bezier(.2,.8,.2,1); --ease-draw:cubic-bezier(.65,0,.35,1);
+  --ease-out:cubic-bezier(.2,.8,.2,1); --ease-draw:cubic-bezier(.65,0,.35,1); --ease-stamp:cubic-bezier(.2,.9,.3,1);
 
   /* camadas */
-  --z-draw:3; --z-sheet:50; --z-toast:60;
+  --z-draw:3; --z-tabs:40; --z-sheet:50; --z-toast:60;
+  --tabbar-h:64px;     /* altura da barra de abas */
 }
 
-/* modo escuro: caderno preto com caneta gel */
+/* tema escolhido na aba Conta: data-theme no html (ou num pedaço da página, como as miniaturas do tema) */
+[data-theme="light"]{
+  color-scheme:light;
+  --cover:#1f3c88; --cover-deep:#172e6c; --on-cover:#eef2fb;
+  --paper:#f2f4ec; --paper-2:#e6eadd; --print:#283044; --print-2:#59647c; --rule:#b0bcd3; --rule-2:#d2d9e5;
+  --pen:#2348c4; --stamp:#6b3fa6; --ok:#1e7f49; --red:#cf3528; --orange:#b0560f;
+  --postit:#ffe36e; --fold:#e5c43f; --on-postit:#2b2510; --star:#f4b81e; --crumb:#cdb8bf; --shade:rgba(18,30,68,.2); --desk:#cdd3c6; --staple-a:1; --go:#1f3c88;
+  --up:var(--ok); --keep:var(--stamp); --down:var(--orange); --free:var(--pen);
+}
+/* modo escuro: a mesma caderneta de capa marinho, página grafite e tinta clara */
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     color-scheme:dark;
-    --paper:#16181e; --card:#1e2129; --desk:#0b0c10; --rule:#232d44; --margin:#5e2a33; --wire:#5d6475;
-    --ink:#a8c3ff; --marker:#f0eee8; --pencil:#8f96a8; --red:#ff6f78; --ok:#5fcf7d;
-    --hl-y:#eadc52; --hl-g:#8bd963; --hl-p:#f088c2; --hl-b:#6fbfe8; --hl-o:#f0a95a; --under:rgba(234,220,82,.38); --on-hl:#15161b;
-    --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000; --crumb:#6b6170;
+    --cover:#101b3b; --cover-deep:#0a1229; --on-cover:#dfe6f7;
+    --paper:#1a2030; --paper-2:#232b3e; --print:#dfe4ef; --print-2:#a1abc2; --rule:#3d4a67; --rule-2:#2d3751;
+    --pen:#93acff; --stamp:#bd9cf5; --ok:#68d69a; --red:#ff8475; --orange:#f3a660;
+    --postit:#e9d25e; --fold:#b49b34; --on-postit:#221d08; --star:#f2c64f; --crumb:#6f6474; --shade:rgba(0,0,0,.5); --desk:#070a12; --staple-a:.55; --go:#2b4db0;
   }
 }
-:root[data-theme="dark"]{
+[data-theme="dark"]{
   color-scheme:dark;
-  --paper:#16181e; --card:#1e2129; --desk:#0b0c10; --rule:#232d44; --margin:#5e2a33; --wire:#5d6475;
-  --ink:#a8c3ff; --marker:#f0eee8; --pencil:#8f96a8; --red:#ff6f78; --ok:#5fcf7d;
-  --hl-y:#eadc52; --hl-g:#8bd963; --hl-p:#f088c2; --hl-b:#6fbfe8; --hl-o:#f0a95a; --under:rgba(234,220,82,.38); --on-hl:#15161b;
-  --postit:#e6d160; --fold:#b09c36; --tape:rgba(255,255,255,.12); --drop:#000; --crumb:#6b6170;
+  --cover:#101b3b; --cover-deep:#0a1229; --on-cover:#dfe6f7;
+  --paper:#1a2030; --paper-2:#232b3e; --print:#dfe4ef; --print-2:#a1abc2; --rule:#3d4a67; --rule-2:#2d3751;
+  --pen:#93acff; --stamp:#bd9cf5; --ok:#68d69a; --red:#ff8475; --orange:#f3a660;
+  --postit:#e9d25e; --fold:#b49b34; --on-postit:#221d08; --star:#f2c64f; --crumb:#6f6474; --shade:rgba(0,0,0,.5); --desk:#070a12; --staple-a:.55; --go:#2b4db0;
+  --up:var(--ok); --keep:var(--stamp); --down:var(--orange); --free:var(--pen);
 }
-@media (min-width:600px){ :root{ --mx:40px; } }
+@media (min-width:600px){ :root{ --gutter:28px; --spine:20px; } }

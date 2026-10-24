@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Bloquinho</title>
 <meta name="description" content="Caderno de treino: séries normais, Muscle Round, Cluster, Rest-pause e cardio. Conta as séries e o descanso, diz se sobe a carga, marca os dias no calendário e guarda tudo na sua conta.">
-<meta name="theme-color" content="#fbfcf7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#16181e" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#172e6c" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a1229" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Bloquinho">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta property="og:title" content="Bloquinho">
 <meta property="og:description" content="Caderno de treino: séries, técnicas, cardio e calendário.">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -18,23 +18,28 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Permanent+Marker&display=swap">
-<link rel="stylesheet" href="/css/tokens.css?v=10">
-<link rel="stylesheet" href="/css/app.css?v=10">
-<script src="/js/vendor/supabase.js?v=10" defer></script>
-<script src="/js/config.js?v=10" defer></script>
-<script src="/js/cloud.js?v=10" defer></script>
-<script src="/js/fx.js?v=10" defer></script>
-<script src="/js/app.js?v=10" defer></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:wght@400;500;600&family=Nanum+Pen+Script&display=swap">
+<script src="/js/theme.js?v=22"></script>
+<link rel="stylesheet" href="/css/tokens.css?v=22">
+<link rel="stylesheet" href="/css/app.css?v=22">
+<script src="/js/vendor/supabase.js?v=22" defer></script>
+<script src="/js/config.js?v=22" defer></script>
+<script src="/js/cloud.js?v=22" defer></script>
+<script src="/js/demo.js?v=22" defer></script>
+<script src="/js/fx.js?v=22" defer></script>
+<script src="/js/app.js?v=22" defer></script>
 </head>
 <body>
 <svg class="svg-defs" aria-hidden="true" focusable="false"><defs>
   <filter id="rough" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.5"/></filter>
+  <filter id="ink" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="9" result="grain"/><feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -2.4 0 0 0 1.95" result="mask"/><feComposite in="SourceGraphic" in2="mask" operator="in" result="inked"/><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="1" seed="2" result="wob"/><feDisplacementMap in="inked" in2="wob" scale="1.8" xChannelSelector="R" yChannelSelector="G"/></filter>
+  <filter id="ink-big" x="-4%" y="-4%" width="108%" height="108%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="4" result="grain"/><feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -3.2 0 0 0 2.75" result="mask"/><feComposite in="SourceGraphic" in2="mask" operator="in"/></filter>
 </defs></svg>
 <div class="sheet">
-  <div class="spiral" aria-hidden="true"></div>
+  <div class="spine" aria-hidden="true"></div>
   <main id="app"><noscript><p>Ativa o JavaScript pra usar o Bloquinho.</p></noscript></main>
 </div>
+<div id="tabLayer"></div>
 <div id="sheetLayer"></div>
 <div id="installLayer"></div>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>

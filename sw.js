@@ -1,6 +1,6 @@
 // Bloquinho: deixa o app abrir sem internet (academia com sinal ruim).
-const VERSION = 'bloquinho-v10';
-const SHELL = ['/', '/css/tokens.css?v=10', '/css/app.css?v=10', '/js/vendor/supabase.js?v=10', '/js/config.js?v=10', '/js/cloud.js?v=10', '/js/fx.js?v=10', '/js/app.js?v=10', '/manifest.webmanifest', '/logo.svg', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
+const VERSION = 'bloquinho-v22';
+const SHELL = ['/', '/css/tokens.css?v=22', '/css/app.css?v=22', '/js/vendor/supabase.js?v=22', '/js/theme.js?v=22', '/js/config.js?v=22', '/js/cloud.js?v=22', '/js/fx.js?v=22', '/js/app.js?v=22', '/manifest.webmanifest', '/logo.svg', '/icons/icon-192.png', '/icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

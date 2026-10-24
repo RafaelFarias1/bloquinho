@@ -13,35 +13,40 @@ const FX = window.FX, Cloud = window.Cloud;
 const zone = c => Math.max(1, Math.ceil(c.blocks / 2));
 const TECH = {
   normal: {
-    name: 'Séries normais', mode: 'sets', lastMax: false, blocks: 3, reps: 10, rest: 90, goal: 0, color: '--hl-b',
-    rule: c => `${c.blocks} séries de ${c.reps} reps com ${fmtRest(c.rest)} de descanso entre elas. Dá pra mudar a carga de uma série pra outra. Fechou todas com ${c.reps} reps? Sobe a carga.`,
-    first: c => `escolhe uma carga que dá pra fazer ${c.reps} reps com 1 ou 2 de sobra`
+    name: 'Séries normais', mode: 'sets', lastMax: false, blocks: 3, reps: 10, rest: 90, goal: 0, color: '--pen',
+    rule: c => c.repsMin
+      ? `${c.blocks} séries de ${c.repsMin} a ${c.reps} reps com ${fmtRest(c.rest)} de descanso entre elas. Dá pra mudar a carga de uma série pra outra. Chegou nas ${c.reps} reps em todas? Sobe a carga. Ficou abaixo de ${c.repsMin}? Baixa.`
+      : `${c.blocks} séries de ${c.reps} reps com ${fmtRest(c.rest)} de descanso entre elas. Dá pra mudar a carga de uma série pra outra. Fechou todas com ${c.reps} reps? Sobe a carga.`,
+    first: c => c.repsMin ? `escolhe uma carga que dá pra fazer entre ${c.repsMin} e ${c.reps} reps` : `escolhe uma carga que dá pra fazer ${c.reps} reps com 1 ou 2 de sobra`
   },
   muscle: {
-    name: 'Muscle Round', mode: 'fixed', lastMax: true, blocks: 6, reps: 4, rest: 10, goal: 20, color: '--hl-y',
+    name: 'Muscle Round', mode: 'fixed', lastMax: true, blocks: 6, reps: 4, rest: 10, goal: 20, color: '--stamp',
     rule: c => `${c.blocks} blocos de ${c.reps} reps com ${fmtRest(c.rest)} de descanso. Carga de 8 a 12 reps. O ideal é falhar entre o ${zone(c)}º e o ${zone(c) + 1}º bloco. Chegou no ${c.blocks}º? Vai até a falha.`,
     first: () => 'escolhe uma carga que você faria de 8 a 12 reps direto'
   },
   cluster: {
-    name: 'Cluster set', mode: 'fixed', lastMax: false, blocks: 5, reps: 3, rest: 20, goal: 20, color: '--hl-g',
+    name: 'Cluster set', mode: 'fixed', lastMax: false, blocks: 5, reps: 3, rest: 20, goal: 20, color: '--ok',
     rule: c => `${c.blocks} blocos de ${c.reps} reps com ${fmtRest(c.rest)} de descanso. Carga pesada, de umas 5 a 6 reps. Fechou todos os blocos? Sobe a carga.`,
     first: () => 'escolhe uma carga que você faria umas 5 ou 6 reps direto'
   },
   restpause: {
-    name: 'Rest-pause', mode: 'count', lastMax: false, blocks: 3, reps: 0, rest: 15, goal: 20, color: '--hl-p',
+    name: 'Rest-pause', mode: 'count', lastMax: false, blocks: 3, reps: 0, rest: 15, goal: 20, color: '--print',
     rule: c => `Vai até a falha, descansa ${fmtRest(c.rest)} e continua, ${c.blocks} blocos no total. Anota as reps de cada um. Somou ${c.goal} reps? Sobe a carga.`,
     first: () => 'escolhe uma carga que você faria de 8 a 10 reps direto'
   },
   time: {
-    name: 'Tempo (cardio)', mode: 'time', lastMax: false, blocks: 1, reps: 0, rest: 0, goal: 20, color: '--hl-o',
+    name: 'Tempo (cardio)', mode: 'time', lastMax: false, blocks: 1, reps: 0, rest: 0, goal: 20, color: '--orange',
     rule: c => `Esteira, bike, corrida, prancha: o app marca o tempo e avisa quando bater a meta de ${c.goal} min. No fim, dá pra anotar a distância.`,
     first: c => `vai no seu ritmo, a meta é ${c.goal} min`
   }
 };
 const LIMITS = { blocks: [1, 12], reps: [1, 50], rest: [3, 600], goal: [1, 300] };
+/* séries normais podem ter faixa de reps (5 a 9): o mínimo fica em goal, que essa técnica não usa (0 = reps fixas) */
+const repsTxt = c => c.repsMin ? `${c.repsMin} a ${c.reps}` : `${c.reps}`;
+const lowOf = c => c.mode === 'sets' && c.repsMin ? c.repsMin : c.reps;
 const spec = c => c.mode === 'time' ? `meta de ${c.goal} min`
   : c.mode === 'count' ? `${c.blocks} blocos até a falha · ${fmtRest(c.rest)} de descanso · meta de ${c.goal} reps`
-  : `${c.blocks} ${c.mode === 'sets' ? 'séries' : 'blocos'} × ${c.reps} reps · ${fmtRest(c.rest)} de descanso`;
+  : `${c.blocks} ${c.mode === 'sets' ? 'séries' : 'blocos'} × ${c.mode === 'sets' ? repsTxt(c) : c.reps} reps · ${fmtRest(c.rest)} de descanso`;
 /* bloco é masculino, série é feminina: as frases mudam junto */
 const UNIT = {
   block: { one: 'bloco', many: 'blocos', short: 'B', next: 'próximo', last: 'o último', done: 'Fim da série!', said: 'Fim da série.' },
@@ -52,6 +57,9 @@ const REASONS = [['sono', 'dormi mal'], ['comida', 'comi mal'], ['cansaco', 'can
   ['doente', 'doente'], ['tempo', 'pouco tempo'], ['cheia', 'academia cheia'], ['vontade', 'sem vontade'], ['outro', 'outro motivo']];
 const REASON_LABEL = Object.fromEntries(REASONS);
 const FREE_PICKS = ['Corrida', 'Caminhada', 'Bike', 'Natação', 'Jiu-jitsu', 'Futebol', 'Yoga', 'Alongamento'];
+/* jiu-jitsu ganha ficha própria: kimono, rolas, golpes que encaixou e o que aprendeu */
+const isBJJ = name => /jiu|bjj|\bjj\b/i.test(name || '');
+const BJJ_GOLPES = ['Armlock', 'Triângulo', 'Mata-leão', 'Kimura', 'Americana', 'Guilhotina', 'Omoplata', 'Estrangulamento de gola', 'Chave de pé', 'Raspagem', 'Passagem de guarda', 'Queda', 'Pegada nas costas', 'Montada'];
 const WEEK = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
 /* =========================================================
@@ -86,7 +94,7 @@ const listPt = a => { try { return new Intl.ListFormat('pt-BR', { type: 'conjunc
    (bloquinho:v1) vai pra primeira conta que entrar neste aparelho.
    ========================================================= */
 const LS_LEGACY = 'bloquinho:v1', LS_RUN = 'bloquinho:run', LS_INSTALL = 'bloquinho:install-seen';
-const DEFAULTS = { sound: true, voice: true, hideHow: false, seeded: false };
+const DEFAULTS = { sound: true, voice: true, hideHow: false, seeded: false, theme: 'auto' };
 const S = { user: null, workouts: [], logs: [], sessions: [], settings: { ...DEFAULTS } };
 let view = { name: 'home' };
 let run = null;
@@ -161,7 +169,8 @@ const getE = (wid, eid) => getW(wid)?.exercises.find(e => e.id === eid);
 const logsOf = eid => S.logs.filter(l => l.eid === eid);
 const lastLog = eid => logsOf(eid).at(-1);
 const techOf = e => TECH[e.tech] || TECH.normal;
-const cfgOf = e => { const T = techOf(e); return { tech: e.tech, mode: T.mode, lastMax: T.lastMax, blocks: e.blocks, reps: e.reps || 4, rest: e.rest, goal: e.goal || T.goal }; };
+const cfgOf = e => { const T = techOf(e), reps = e.reps || 4; return { tech: e.tech, mode: T.mode, lastMax: T.lastMax, blocks: e.blocks, reps, rest: e.rest, goal: e.goal || T.goal,
+  repsMin: T.mode === 'sets' && e.goal > 0 && e.goal < reps ? e.goal : null }; };
 const touchWorkout = w => { if (w && w.example) w.example = false; };
 
 /* =========================================================
@@ -260,8 +269,8 @@ function evaluate(cfg, reps, load, minutes) {
       ev.verdict = 'up';
       ev.big = reps.every(r => r >= cfg.reps + 3);
     } else {
-      // parar antes com séries boas não é queda: só baixa se as séries feitas ficaram longe do alvo
-      ev.verdict = total / Math.max(1, reps.length) < cfg.reps * 0.75 ? 'down' : 'keep';
+      // parar antes com séries boas não é queda: só baixa se as séries feitas ficaram longe do alvo (ou abaixo da faixa)
+      ev.verdict = total / Math.max(1, reps.length) < (cfg.repsMin || cfg.reps * 0.75) ? 'down' : 'keep';
     }
   } else {
     let fi = reps.findIndex(r => r < cfg.reps);
@@ -290,9 +299,10 @@ function verdictCopy(cfg, ev, reps, km) {
     return { title: 'Bom treino', body: `${fmt(ev.total)} de ${cfg.goal} min${dist}. No próximo, tenta chegar na meta.` };
   }
   if (cfg.mode === 'sets') {
-    if (ev.verdict === 'up') return { title: 'Sobe a carga', body: `Fechou ${cfg.blocks} × ${cfg.reps}.${ev.big ? ' Sobrou gás, dá pra subir mais.' : ''}${kg ? ` Próximo treino: ${kg}.` : ''}` };
-    if (ev.verdict === 'down') return { title: 'Baixa a carga', body: `Fez ${listPt(reps)} reps, longe das ${cfg.reps} por série.${kg ? ` Próximo treino: uns ${kg}.` : ''}` };
-    return { title: 'Mantém a carga', body: `Fez ${listPt(reps)} reps. Mesma carga no próximo treino, tenta fechar ${cfg.blocks} × ${cfg.reps}.` };
+    const R = cfg.repsMin;
+    if (ev.verdict === 'up') return { title: 'Sobe a carga', body: `${R ? `Chegou nas ${cfg.reps} reps em todas as séries.` : `Fechou ${cfg.blocks} × ${cfg.reps}.`}${ev.big ? ' Sobrou gás, dá pra subir mais.' : ''}${kg ? ` Próximo treino: ${kg}.` : ''}` };
+    if (ev.verdict === 'down') return { title: 'Baixa a carga', body: `Fez ${listPt(reps)} reps, ${R ? `abaixo da faixa de ${R} a ${cfg.reps}` : `longe das ${cfg.reps} por série`}.${kg ? ` Próximo treino: uns ${kg}.` : ''}` };
+    return { title: 'Mantém a carga', body: `Fez ${listPt(reps)} reps${R ? ', dentro da faixa' : ''}. Mesma carga no próximo treino, tenta ${R ? `chegar nas ${cfg.reps} em todas as séries` : `fechar ${cfg.blocks} × ${cfg.reps}`}.` };
   }
   if (cfg.mode === 'count') {
     if (ev.verdict === 'up') return { title: 'Sobe a carga', body: `Somou ${ev.total} reps e bateu a meta de ${cfg.goal}.${kg ? ` Próximo treino: ${kg}.` : ''}` };
@@ -325,7 +335,7 @@ function planFor(e) {
   if (last.verdict === 'up') return { load: last.next ?? last.load, html: `Em ${when} você fechou tudo${at}. <b>${last.next != null ? `Hoje: ${fmt(last.next)} kg.` : 'Hoje: tenta umas reps a mais.'}</b>` };
   if (last.verdict === 'down') return { load: last.next ?? last.load, html: `Em ${when} ficou pesado${at}. <b>${last.next != null ? `Hoje: uns ${fmt(last.next)} kg.` : 'Hoje: vai com calma.'}</b>` };
   if (m === 'count') return { load: last.load, html: `Em ${when}: ${last.total} reps${at}. <b>Hoje: mesma carga, tenta ${last.total + 1} ou mais.</b>` };
-  if (m === 'sets') return { load: last.load, html: `Em ${when}: ${last.reps.join('·')} reps${at}. <b>Hoje: mesma carga, tenta fechar ${cfg.blocks} × ${cfg.reps}.</b>` };
+  if (m === 'sets') return { load: last.load, html: `Em ${when}: ${last.reps.join('·')} reps${at}. <b>Hoje: mesma carga, tenta ${cfg.repsMin ? `chegar nas ${cfg.reps} em todas` : `fechar ${cfg.blocks} × ${cfg.reps}`}.</b>` };
   return { load: last.load, html: `Em ${when} você falhou no ${last.failBlock}º bloco${at}. <b>Hoje: mesma carga, tenta passar do ${last.failBlock}º.</b>` };
 }
 
@@ -543,9 +553,37 @@ const ICON = {
   phone: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 10H6v10h12V10h-2"/></svg>',
   plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8.5v7M8.5 12h7"/></svg>',
-  dots: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>'
+  dots: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+  back: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.5 12H5M11 5.5 4.5 12 11 18.5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>',
+  prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 5.5 16 12l-6.5 6.5"/></svg>',
+  book: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3v18M12.5 8h3.5M12.5 12h3.5"/></svg>',
+  cal: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><circle cx="15" cy="15.2" r="2.3"/></svg>',
+  user: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.6"/><path d="M5 20.5c1.2-3.7 4-5.6 7-5.6s5.8 1.9 7 5.6"/></svg>',
+  pen: '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 19.5l1-4.2L15.8 5l3.2 3.2L8.7 18.5z"/><path d="M13.6 7.2l3.2 3.2"/></svg>'
 };
 const tally = FX.tally;
+/* carimbo datador: dia e mês, cada coisa carimbada torta do seu jeito */
+const MES = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+const dstamp = (d, key, cls = '') => `<span class="dstamp${cls}" style="${FX.hand(key)}" aria-hidden="true"><b>${d.getDate()}</b><small>${MES[d.getMonth()]}</small></span>`;
+/* o descanso e o cronômetro são um carimbo redondo: texto em cima, texto embaixo e duas estrelas */
+const star = (cx, cy, R = 5.5, r = 2.3) => 'M' + Array.from({ length: 10 }, (_, i) => {
+  const a = -Math.PI / 2 + i * Math.PI / 5, k = i % 2 ? r : R;
+  return `${(cx + k * Math.cos(a)).toFixed(1)} ${(cy + k * Math.sin(a)).toFixed(1)}`;
+}).join('L') + 'Z';
+let ringN = 0;
+function stampRing(top, bottom, off) {
+  const id = `rg${++ringN}`;
+  return `<svg viewBox="0 0 200 200" aria-hidden="true">
+    <defs><path id="${id}t" d="M36 100a64 64 0 0 1 128 0"/><path id="${id}b" d="M27 100a73 73 0 0 0 146 0"/></defs>
+    <g class="ring"><circle class="ring-bg" cx="100" cy="100" r="84"/><circle class="ring-fg" id="ringFg" cx="100" cy="100" r="84" stroke-dasharray="${RING.toFixed(1)}" style="stroke-dashoffset:${off}"/></g>
+    <circle class="ring-in" cx="100" cy="100" r="56"/>
+    <text class="ring-txt" text-anchor="middle"><textPath href="#${id}t" startOffset="50%">${esc(top.toUpperCase())}</textPath></text>
+    <text class="ring-txt" text-anchor="middle"><textPath href="#${id}b" startOffset="50%">${esc(bottom.toUpperCase())}</textPath></text>
+    <path class="ring-star" d="${star(32, 100)}"/><path class="ring-star" d="${star(168, 100)}"/>
+  </svg>`;
+}
 
 /* =========================================================
    Instalar na tela do celular
@@ -651,9 +689,9 @@ function viewAuth() {
       ${m === 'login' ? '<button type="button" class="link" data-a="auth-mode" data-m="forgot">esqueci a senha</button>' : '<p class="t-note">Com a conta, seus treinos ficam guardados mesmo se você trocar de celular.</p>'}
     </form>`;
   return `
-  <header class="home-top auth-top">
-    <div class="brand"><img class="logo" src="/logo.svg" alt="" width="56" height="56"><div><h1 class="t-hero">Bloquinho</h1>${ICON.scrib}</div></div>
-    <p class="t-note">caderno de treino: séries, técnicas, cardio e o que mais você fizer</p>
+  <header class="cover-band auth-top">
+    <img class="logo" src="/logo.svg" alt="" width="72" height="72">
+    <div class="cover-title"><h1 class="t-hero">Bloquinho</h1><p class="cover-sub">caderno de treino: séries, técnicas, cardio e o que mais você fizer</p></div>
   </header>
   <section class="card hand auth${tabs ? '' : ' auth--solo'}" style="${FX.hand('auth', 0.5)}">${FX.tapes('auth')}${body}</section>`;
 }
@@ -670,9 +708,10 @@ function syncText() {
 function viewHome() {
   const how = !S.settings.hideHow && S.logs.length < 3;
   return `
-  <header class="home-top">
-    <div class="brand"><img class="logo" src="/logo.svg" alt="" width="56" height="56"><div><h1 class="t-hero">Bloquinho</h1>${ICON.scrib}</div></div>
-    <p class="t-note">caderno de treino</p>
+  <header class="cover-band">
+    <img class="logo" src="/logo.svg" alt="" width="56" height="56">
+    <div class="cover-title"><h1 class="t-hero">Bloquinho</h1><p class="cover-sub">caderno de treino</p></div>
+    <p class="cover-label"><span>Nome</span><b>${esc(S.user.email.split('@')[0])}</b></p>
   </header>
   ${how ? `<section class="card card--flat how" aria-label="Como funciona">
     <ol class="how-list">
@@ -690,18 +729,35 @@ function viewHome() {
     <summary class="t-section"><span class="under">Cola das técnicas</span></summary>
     <div class="cola-grid">${Object.values(TECH).map(T => `<div><h3><span class="hl" style="--c:var(${T.color})">${T.name}</span></h3><p>${T.rule({ blocks: T.blocks, reps: T.reps, rest: T.rest, goal: T.goal })}</p></div>`).join('')}</div>
   </details>
-  <footer class="foot">
-    ${isStandalone() ? '' : `<button class="btn btn--ghost btn--wide" data-a="install">${ICON.phone}<span>Pôr na tela do celular</span></button>`}
-    <div class="toggles">
-      <button class="toggle" data-a="set" data-k="sound" aria-pressed="${!!S.settings.sound}"><span class="toggle-box">${S.settings.sound ? ICON.check : ''}</span>bipe</button>
-      <button class="toggle" data-a="set" data-k="voice" aria-pressed="${!!S.settings.voice}"><span class="toggle-box">${S.settings.voice ? ICON.check : ''}</span>voz (“bloco 3, vai!”)</button>
-    </div>
-    <div class="acct">
-      <p class="t-note" id="syncStatus" role="status">${esc(syncText())}</p>
-      <p class="t-note">Conta: <b>${esc(S.user.email)}</b> · <button class="link" data-a="logout">sair da conta</button></p>
-    </div>
-    <p class="t-note">No iPhone, tira do modo silencioso pra ouvir os avisos.</p>
-  </footer>`;
+  ${folio('home')}
+  `;
+}
+function viewAccount() {
+  const t = S.settings.theme || 'auto';
+  const sw = v => v === 'auto'
+    ? `<span class="sw sw--auto" aria-hidden="true">${sw('light')}${sw('dark')}</span>`
+    : `<span class="sw" data-theme="${v}" aria-hidden="true"><i class="sw-cover"></i><i class="sw-line"></i><i class="sw-line"></i><i class="sw-stamp"></i></span>`;
+  const opt = (v, label, note) => `<button class="theme-opt${t === v ? ' on' : ''}" role="radio" aria-checked="${t === v}" data-a="theme" data-v="${v}">${sw(v)}<b>${label}</b><small>${note}</small></button>`;
+  return `
+  <h1 class="t-title t-title--print page-top">Conta</h1>
+  <p class="t-note">A identificação e as configurações da sua caderneta.</p>
+  <section class="ident" aria-label="Identificação">
+    <h2 class="ident-title">Esta caderneta pertence a</h2>
+    <p class="ident-line"><span class="t-label">Nome</span><b>${esc(S.user.email.split('@')[0])}</b></p>
+    <p class="ident-line ident-line--mail"><span class="t-label">E-mail</span><b>${esc(S.user.email)}</b></p>
+    <p class="t-note" id="syncStatus" role="status">${esc(syncText())}</p>
+    <button class="link link--danger" data-a="logout">sair da conta</button>
+  </section>
+  <h2 class="t-section">Aparência</h2>
+  <div class="theme-pick" role="radiogroup" aria-label="Tema">${opt('auto', 'Automático', 'segue o celular')}${opt('light', 'Claro', 'página clara')}${opt('dark', 'Escuro', 'página escura')}</div>
+  <h2 class="t-section">Avisos na série</h2>
+  <div class="toggles">
+    <button class="toggle" data-a="set" data-k="sound" aria-pressed="${!!S.settings.sound}"><span class="toggle-box">${S.settings.sound ? ICON.check : ''}</span>bipe</button>
+    <button class="toggle" data-a="set" data-k="voice" aria-pressed="${!!S.settings.voice}"><span class="toggle-box">${S.settings.voice ? ICON.check : ''}</span>voz (“bloco 3, vai!”)</button>
+  </div>
+  <p class="t-note">No iPhone, tira do modo silencioso pra ouvir os avisos.</p>
+  ${isStandalone() ? '' : `<h2 class="t-section">No celular</h2><button class="btn btn--ghost btn--wide" data-a="install">${ICON.phone}<span>Pôr na tela do celular</span></button>`}
+  ${folio('account')}`;
 }
 /* a semana na capa: um quadradinho por dia, com visto quando treinou */
 function weekStrip() {
@@ -713,24 +769,27 @@ function weekStrip() {
     const k = dayKey(d), on = days.has(k);
     if (on) n++;
     cells += `<button class="wd${on ? ' is-on' : ''}${k === today ? ' is-today' : ''}" data-a="calendar" data-d="${k}" aria-label="${fmtLong(d)}${on ? ', treinou' : ''}">
-      <span class="t-label">${WEEK[i]}</span><span class="cb" aria-hidden="true" style="${FX.hand(k + ':wk', 1.4)}">${on ? ICON.check : ''}</span><span class="wd-n">${d.getDate()}</span>
+      <span class="wd-k" aria-hidden="true">${WEEK[i]}</span><span class="wd-box">${on ? dstamp(d, k + ':wk') : `<span class="wd-n" aria-hidden="true">${d.getDate()}</span>`}</span>
     </button>`;
   }
+  const end = new Date(start); end.setDate(start.getDate() + 6);
+  const mon = d => d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  const range = start.getMonth() === end.getMonth() ? `${start.getDate()} a ${end.getDate()} de ${mon(end)}` : `${start.getDate()} de ${mon(start)} a ${end.getDate()} de ${mon(end)}`;
   return `<section class="week" aria-label="Esta semana">
-    <div class="week-head"><h2 class="t-section"><span class="under">Esta semana</span></h2><button class="link" data-a="calendar">ver calendário</button></div>
+    <div class="week-head"><h2 class="t-section">Esta semana</h2><span class="guide">${range}</span><button class="link" data-a="calendar">ver calendário</button></div>
     <div class="week-days">${cells}</div>
     <p class="t-note">${n ? `${plural(n, 'dia', 'dias')} de treino nesta semana.` : 'Nenhum treino nesta semana ainda. Bora?'}</p>
   </section>`;
 }
-function wcard(w) {
+function wcard(w, n = 0) {
   const s = shownSession(w.id), going = s && !s.closedAt;
   const done = sessionsOf(w.id).at(-1);
   const cmp = done ? sessionCompare(w, done) : null;
   const techs = [...new Set(w.exercises.map(e => techOf(e).name))];
-  const when = going ? '<span class="hl" style="--c:var(--hl-y)">em andamento</span>' : done ? `último: ${fmtDate(done.startedAt)}` : 'ainda não feito';
+  const when = going ? '<span class="hl" style="--c:var(--stamp)">em andamento</span>' : done ? `último: ${fmtDate(done.startedAt)}` : 'ainda não feito';
   return `<button class="card hand wcard" id="wc-${w.id}" data-a="open-w" data-w="${w.id}" style="${FX.hand(w.id)}">
     ${FX.tapes(w.id)}
-    <span class="wcard-head"><span class="t-card">${esc(w.name || 'Treino sem nome')}</span>${w.example ? '<span class="chip chip--example">exemplo</span>' : ''}</span>
+    <span class="wcard-head"><span class="wcard-no">nº ${n + 1}</span><span class="t-card">${esc(w.name || 'Treino sem nome')}</span>${w.example ? '<span class="chip chip--example">exemplo</span>' : ''}</span>
     <span class="wcard-list">${w.exercises.map(e => `<span>${esc(e.name || 'Exercício sem nome')}</span>`).join('') || '<span class="t-muted">sem exercícios ainda</span>'}</span>
     <span class="wcard-meta"><span>${techs.join(' + ') || 'vazio'} · ${when}</span>${!going && cmp && cmp.pct != null ? deltaChip(cmp.pct) : ''}</span>
   </button>`;
@@ -762,7 +821,7 @@ function viewWorkout() {
     if (first) top = `<button class="btn btn--go btn--wide btn--xl go-next" data-a="start-w">${ICON.play}<span>Começar treino</span></button>`;
   }
   return `
-  <nav class="crumbs"><button class="link" data-a="home">← caderno</button><button class="link" data-a="edit-w">editar</button></nav>
+  <nav class="crumbs"><button class="link link--back" data-a="home">${ICON.back}caderno</button><span class="runhead">treino nº ${S.workouts.indexOf(w) + 1} de ${S.workouts.length}</span><button class="link link--tab" data-a="edit-w">${ICON.pen}editar</button></nav>
   <h1 class="t-title">${esc(w.name || 'Treino sem nome')}</h1>
   <p class="t-note">${sub}</p>
   ${top}
@@ -772,7 +831,7 @@ function viewWorkout() {
     const chip = ref && ref.tech !== 'time' && ref.verdict ? ` <span class="delta delta--sm delta--${ref.verdict}">${VWORD[ref.verdict]}</span>` : '';
     const cls = `${i.done ? ' is-done' : ''}${next && next.e.id === i.e.id && doneN ? ' is-next' : ''}${fresh.done === i.e.id ? ' just-done' : ''}`;
     return `<li class="ex${cls}" id="row-${i.e.id}">
-      <span class="cb" aria-hidden="true" style="${FX.hand(i.e.id + ':cb', 1.4)}">${i.done ? ICON.check : ''}</span>
+      <span class="cb" aria-hidden="true">${i.done ? dstamp(new Date(i.done.ts), i.e.id + ':cb') : ''}</span>
       <button class="ex-main" data-a="run" data-e="${i.e.id}">
         <span class="ex-name"><span class="strike">${esc(i.e.name || 'Exercício sem nome')}</span></span>
         <span class="ex-info">${techOf(i.e).name} · ${esc(info)}${chip}</span>
@@ -788,9 +847,10 @@ function compareCard(w, cmp, final, s) {
   const rows = cmp.rows.map(r => {
     const name = esc(getE(w.id, r.t.eid)?.name || r.t.name || 'Exercício');
     const time = r.t.tech === 'time';
-    if (!r.p) return `<tr><th scope="row">${name}</th><td>${time ? '—' : loadTxt(r.t) ?? '—'}</td><td>${time ? `${fmt(r.t.total)} min` : fmt(r.t.total)}</td><td><span class="t-muted">1ª vez</span></td></tr>`;
-    const reps = time ? `${fmt(r.p.total)}→${fmt(r.t.total)} min` : `${fmt(r.p.total)}→${fmt(r.t.total)}`;
-    return `<tr><th scope="row">${name}</th><td>${time ? '—' : loadPair(r.p, r.t)}</td><td>${reps}</td><td>${deltaChip(r.d.pct)}</td></tr>`;
+    const kr = (kg, reps) => `<td class="kr">${kg != null ? `<span>${kg} kg</span>` : ''}<span>${reps}</span></td>`;
+    if (!r.p) return `<tr><th scope="row">${name}</th>${kr(time ? null : loadTxt(r.t) ?? '—', time ? `${fmt(r.t.total)} min` : `${fmt(r.t.total)} reps`)}<td><span class="t-muted">1ª vez</span></td></tr>`;
+    const reps = time ? `${fmt(r.p.total)}→${fmt(r.t.total)} min` : `${fmt(r.p.total)}→${fmt(r.t.total)} reps`;
+    return `<tr><th scope="row">${name}</th>${kr(time ? null : loadPair(r.p, r.t), reps)}<td>${deltaChip(r.d.pct)}</td></tr>`;
   }).join('');
   const teacher = final && cmp.pct != null && dirOf(cmp.pct) === 'up' ? FX.teacherStamp(fresh.closed ? ' is-new' : '') : '';
   return `<section class="card card--flat compare${final ? ' compare--final' : ''}" aria-label="Progresso">
@@ -798,7 +858,7 @@ function compareCard(w, cmp, final, s) {
     <p class="t-label">${final ? (sameDay(s.startedAt) ? 'Hoje' : `Treino de ${fmtDate(s.startedAt)}`) : 'Até agora'}${cmp.prevTs ? ` vs. ${fmtDate(cmp.prevTs)}` : ''}</p>
     <p class="compare-say">${progressSay(cmp)}</p>
     <div class="table-wrap"><table class="compare-t">
-      <thead><tr><th scope="col">exercício</th><th scope="col">kg</th><th scope="col">reps</th><th scope="col">volume</th></tr></thead>
+      <thead><tr><th scope="col">exercício</th><th scope="col">carga e reps</th><th scope="col">volume</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     ${cmp.compared ? '<p class="t-note">Volume é carga × reps somadas.</p>' : ''}
@@ -818,12 +878,19 @@ function numField(e, k, label) {
 function params(e) {
   const m = techOf(e).mode;
   if (m === 'time') return numField(e, 'goal', 'meta (min)');
-  if (m === 'sets') return numField(e, 'blocks', 'séries') + numField(e, 'reps', 'reps') + numField(e, 'rest', 'descanso (s)');
+  if (m === 'sets') {
+    const range = e.goal > 0;
+    return `<div class="tech-pick range-pick" role="radiogroup" aria-label="Repetições de ${esc(e.name || 'exercício')}">
+        <button role="radio" aria-checked="${!range}" class="tp${range ? '' : ' on'}" data-a="ex-range" data-e="${e.id}" data-v="0">reps fixas</button>
+        <button role="radio" aria-checked="${range}" class="tp${range ? ' on' : ''}" data-a="ex-range" data-e="${e.id}" data-v="1">faixa de reps</button>
+      </div>`
+      + numField(e, 'blocks', 'séries') + (range ? numField(e, 'goal', 'reps, de') + numField(e, 'reps', 'até') : numField(e, 'reps', 'reps')) + numField(e, 'rest', 'descanso (s)');
+  }
   return numField(e, 'blocks', 'blocos') + (m === 'fixed' ? numField(e, 'reps', 'reps/bloco') : numField(e, 'goal', 'meta')) + numField(e, 'rest', 'descanso (s)');
 }
 function viewEdit(w) {
   return `
-  <nav class="crumbs"><button class="link" data-a="edit-done">← pronto</button><span class="t-note">editando</span></nav>
+  <nav class="crumbs"><button class="link link--back" data-a="edit-done">${ICON.back}pronto</button><span class="t-note">editando</span></nav>
   <label class="t-label" for="wname">Nome do treino</label>
   <div class="field-wrap" id="fw-wname"><input id="wname" class="field field--display" data-in="w-name" value="${esc(w.name)}" placeholder="Treino A, Peito e costas…" autocomplete="off">${PEN}</div>
   <h2 class="t-section"><span class="under">Exercícios</span></h2>
@@ -843,15 +910,16 @@ function viewEdit(w) {
 const setCell = (r, kg) => `<span class="cell-v">${r}${kg != null ? `<small>×${fmt(kg)}</small>` : ''}</span>`;
 function blockStrip(cfg) {
   const n = cfg.blocks, cur = run.reps.length, u = unit(cfg), sets = cfg.mode === 'sets';
-  const plan = sets ? `<span class="cell-v cell-v--ghost">${cfg.reps}</span>` : null;
+  const plan = sets ? `<span class="cell-v cell-v--ghost">${cfg.repsMin ? `${cfg.repsMin}–${cfg.reps}` : cfg.reps}</span>` : null;
   let cells = '';
   for (let i = 0; i < n; i++) {
     const r = run.reps[i];
     let cls = 'is-todo', inner = '', extra = i === n - 1 && cfg.lastMax ? '<span class="maxb">máx</span>' : '';
     if (r != null) {
-      const failed = (cfg.mode === 'fixed' || sets) && r < cfg.reps;
+      const failed = (cfg.mode === 'fixed' || sets) && r < lowOf(cfg);
       cls = failed ? 'is-fail' : 'is-done';
-      inner = sets ? setCell(r, run.loads?.[i]) : tally(r, failed ? cfg.reps - r : 0, i + 1, i === run.animIdx);
+      inner = (sets ? setCell(r, run.loads?.[i]) : tally(r, failed ? cfg.reps - r : 0, i + 1, i === run.animIdx))
+        + dstamp(new Date(), `${run.eid}:${i}:s`, i === run.animIdx ? ' is-new' : '');
     } else if (i === cur && run.phase === 'work') {
       cls = 'is-cur';
       inner = sets ? plan : cfg.mode === 'fixed' ? tally(0, cfg.reps, i + 1) : '<span class="q">?</span>';
@@ -870,6 +938,7 @@ function viewRun() {
   const T = techOf(e), cfg = cfgOf(e), time = cfg.mode === 'time';
   if (cfg.mode === 'sets' && !run.loads) run.loads = run.reps.map(() => run.load ?? null);
   const soundOn = S.settings.sound || S.settings.voice;
+  const w = getW(run.wid), pos = w ? w.exercises.findIndex(x => x.id === e.id) : -1;
   let stage;
   if (run.phase === 'ready') stage = stageReady(e, cfg, T);
   else if (run.phase === 'work') stage = time ? stageClock(cfg) : stageWork(cfg);
@@ -877,10 +946,11 @@ function viewRun() {
   else stage = time ? stageDoneTime(e, cfg) : stageDone(e, cfg);
   return `<section class="run">
     <header class="run-top">
-      <button class="link" data-a="run-exit">← sair</button>
+      <button class="link link--back" data-a="run-exit">${ICON.back}sair</button>
       <span class="chip">${T.name}</span>
       <button class="btn-round" data-a="mute" aria-label="${soundOn ? 'Desligar som e voz' : 'Ligar som e voz'}" aria-pressed="${soundOn}">${ICON.sound(soundOn)}</button>
     </header>
+    ${w ? `<p class="runhead runhead--run">${esc(w.name || 'Treino')}${pos >= 0 ? `, exercício ${pos + 1} de ${w.exercises.length}` : ''}</p>` : ''}
     <h1 class="t-card run-name">${esc(e.name || 'Exercício')}${!time && run.phase !== 'ready' && run.load != null ? ` <small>· ${fmt(run.load)} kg</small>` : ''}</h1>
     ${run.phase !== 'done' && !time ? blockStrip(cfg) : ''}
     <div class="stage">${stage}</div>
@@ -911,8 +981,8 @@ function stageWork(cfg) {
   const lastMax = isLast && cfg.lastMax;
   let sub;
   if (cfg.mode === 'count') sub = 'até a falha';
-  else if (lastMax) sub = '<span class="hl" style="--c:var(--hl-p)">último: máximo de reps!</span>';
-  else sub = `${cfg.reps} reps${sets && run.load != null ? ` · ${fmt(run.load)} kg` : ''}`;
+  else if (lastMax) sub = '<span class="hl" style="--c:var(--stamp)">último: máximo de reps!</span>';
+  else sub = `${sets ? repsTxt(cfg) : cfg.reps} reps${sets && run.load != null ? ` · ${fmt(run.load)} kg` : ''}`;
   const secondary = [];
   if (cfg.mode === 'fixed' && !lastMax) secondary.push(`<button class="btn btn--warn" data-a="fail">Falhei antes de ${cfg.reps}</button>`);
   if ((cfg.mode === 'count' || sets) && i > 0) secondary.push('<button class="btn btn--ghost" data-a="end-set">Encerrar aqui</button>');
@@ -930,7 +1000,7 @@ function stageClock(cfg) {
   const ms = Date.now() - run.phaseAt, goal = cfg.goal * 60000;
   return `
     <div class="timer timer--up${run.goalHit ? ' met' : ''}" id="timer" role="timer" aria-label="tempo">
-      <svg viewBox="0 0 200 200" aria-hidden="true"><circle class="ring-bg" cx="100" cy="100" r="84"/><circle class="ring-fg" id="ringFg" cx="100" cy="100" r="84" stroke-dasharray="${RING.toFixed(1)}" style="stroke-dashoffset:${(RING * (1 - Math.min(1, ms / goal))).toFixed(1)}"/></svg>
+      ${stampRing('tempo', `meta ${cfg.goal} min`, (RING * (1 - Math.min(1, ms / goal))).toFixed(1))}
       <b id="count">${fmtClock(ms)}</b>
     </div>
     <p class="rest-sub">meta: ${cfg.goal} min</p>
@@ -946,7 +1016,7 @@ function stageRest(cfg) {
   const done = run.reps.length - 1;
   return `
     <div class="timer${sec <= 3 ? ' hot' : ''}" id="timer" role="timer" aria-label="descanso">
-      <svg viewBox="0 0 200 200" aria-hidden="true"><circle class="ring-bg" cx="100" cy="100" r="84"/><circle class="ring-fg" id="ringFg" cx="100" cy="100" r="84" stroke-dasharray="${RING.toFixed(1)}" style="stroke-dashoffset:${(RING * (1 - ms / run.restMs)).toFixed(1)}"/></svg>
+      ${stampRing('descanso', `${u.one} ${nextI + 1} de ${cfg.blocks}`, (RING * (1 - ms / run.restMs)).toFixed(1))}
       <b id="count">${sec}</b>
     </div>
     <p class="rest-sub">descansa… <span class="t-muted">${u.next}: ${u.one} ${nextI + 1}${nextLast ? `, ${u.last}` : ''}</span></p>
@@ -980,7 +1050,7 @@ function stageDone(e, cfg) {
   } else cmp = '<p class="stamp-cmp t-note">Primeira vez nesse exercício. No próximo treino eu mostro quanto você progrediu.</p>';
   const askLast = cfg.lastMax || cfg.mode === 'count';
   const rows = run.reps.map((r, i) => {
-    const failed = (cfg.mode === 'fixed' || sets) && r < cfg.reps;
+    const failed = (cfg.mode === 'fixed' || sets) && r < lowOf(cfg);
     const ask = askLast && i === run.reps.length - 1 && (cfg.mode === 'count' || i === cfg.blocks - 1);
     const mid = sets
       ? `<span class="rt"><input id="kg-${i}" class="kg-in" inputmode="decimal" autocomplete="off" data-in="set-load" data-i="${i}" value="${numIn(run.loads[i])}" placeholder="0" aria-label="carga da ${i + 1}ª série"><span class="kg-u">kg</span></span>`
@@ -989,7 +1059,7 @@ function stageDone(e, cfg) {
       <span class="rn">${u.short}${i + 1}</span>
       ${mid}
       ${stepper(i)}
-      ${i === run.reps.length - 1 && run.reps.length > 1 ? `<button class="xbtn" data-a="rm-block" aria-label="apagar ${u.one} ${i + 1}">×</button>` : '<span></span>'}
+      ${i === run.reps.length - 1 && run.reps.length > 1 ? `<button class="xbtn" data-a="rm-block" aria-label="apagar ${u.one} ${i + 1}">${ICON.x}</button>` : '<span></span>'}
     </div>`;
   }).join('');
   const canAdd = run.reps.length < cfg.blocks && (cfg.mode === 'count' || sets || ev.failBlock == null || ev.failBlock > run.reps.length);
@@ -1053,11 +1123,11 @@ function viewHistory() {
       <td>${fmtDate(l.ts)}</td>
       ${mid}
       <td>${p ? deltaChip(exDelta(l, p).pct) : '<span class="t-muted">—</span>'}</td>
-      <td><button class="del" data-a="del-log" data-l="${l.id}" aria-label="apagar registro de ${fmtDate(l.ts)}">×</button></td>
+      <td><button class="del" data-a="del-log" data-l="${l.id}" aria-label="apagar registro de ${fmtDate(l.ts)}">${ICON.x}</button></td>
     </tr>`;
   }).reverse().join('');
   return `
-  <nav class="crumbs"><button class="link" data-a="open-w" data-w="${w.id}">← ${esc(w.name || 'treino')}</button></nav>
+  <nav class="crumbs"><button class="link link--back" data-a="open-w" data-w="${w.id}">${ICON.back}${esc(w.name || 'treino')}</button></nav>
   <h1 class="t-title">${esc(e.name || 'Exercício')}</h1>
   <p class="t-note">${techOf(e).name} · ${plural(logs.length, 'registro', 'registros')}</p>
   ${logs.length >= 2 ? chart(logs, time) : ''}
@@ -1079,7 +1149,7 @@ function chart(all, time) {
     <text class="kg" x="${x(i).toFixed(1)}" y="${H - 6}">${fmtDate(l.ts)}</text>`).join('');
   return `<figure class="chart">
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${time ? 'Minutos' : 'Total de reps'} nos últimos ${L.length} treinos"><path class="ln" d="${d}"/>${pts}</svg>
-    <figcaption class="t-note">${time ? 'Minutos por treino. Verde: bateu a meta.' : 'Total de reps por treino. Verde: subiu a carga. Amarelo: manteve. Rosa: baixou.'}</figcaption>
+    <figcaption class="t-note">${time ? 'Minutos por treino. Verde: bateu a meta.' : 'Total de reps por treino. Verde: subiu a carga. Roxo: manteve. Laranja: baixou.'}</figcaption>
   </figure>`;
 }
 
@@ -1100,22 +1170,23 @@ function viewCalendar() {
     if (list.length) trained++;
     const cls = `${list.length ? ' is-on' : ''}${k === today ? ' is-today' : ''}${k === sel ? ' is-sel' : ''}${k > today ? ' is-future' : ''}`;
     cells += `<button class="cal-day${cls}" data-a="cal-day" data-d="${k}" aria-pressed="${k === sel}" aria-label="${fmtLong(dateOf(k))}${list.length ? `, ${plural(list.length, 'treino', 'treinos')}` : ''}">
-      <span class="cal-n">${d}${list.length ? ICON.ring : ''}</span>
+      <span class="cal-n"${list.length ? ` style="${FX.hand(k + ':cal', .7)}"` : ''}>${d}</span>
       <span class="dots" aria-hidden="true">${list.slice(0, 3).map(s => `<i class="dot dot--${resultOf(s)}"></i>`).join('')}</span>
     </button>`;
   }
   return `
-  <nav class="crumbs"><button class="link" data-a="home">← caderno</button></nav>
-  <h1 class="t-title">Calendário</h1>
+  <h1 class="t-title t-title--print page-top">Calendário</h1>
   <p class="t-note">${trained ? `${plural(trained, 'dia', 'dias')} de treino em ${month}.` : `Nenhum treino anotado em ${month}.`}</p>
   <div class="cal-nav">
-    <button class="btn-round" data-a="cal-month" data-d="-1" aria-label="Mês anterior">‹</button>
-    <h2 class="cal-title">${cap(first.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))}</h2>
-    <button class="btn-round" data-a="cal-month" data-d="1" aria-label="Próximo mês">›</button>
+    <button class="btn-round" data-a="cal-month" data-d="-1" aria-label="Mês anterior">${ICON.prev}</button>
+    <p class="cal-title"><span class="t-label">Mês</span><b>${month} de ${first.getFullYear()}</b></p>
+    <button class="btn-round" data-a="cal-month" data-d="1" aria-label="Próximo mês">${ICON.next}</button>
   </div>
+  <div class="cal-caption">Frequência de ${month}</div>
   <div class="cal-grid">${cells}</div>
   <div class="cal-legend" aria-hidden="true"><span><i class="dot dot--up"></i>progrediu</span><span><i class="dot dot--keep"></i>manteve</span><span><i class="dot dot--down"></i>abaixo do normal</span><span><i class="dot dot--free"></i>outra atividade</span></div>
-  ${sel ? dayDetail(sel, map.get(sel) || []) : '<p class="t-muted empty">Toca num dia pra ver o que foi feito.</p>'}`;
+  ${sel ? dayDetail(sel, map.get(sel) || []) : '<p class="t-muted empty">Toca num dia pra ver o que foi feito.</p>'}
+  ${folio('calendar')}`;
 }
 function dayDetail(k, list) {
   const future = k > dayKey();
@@ -1126,11 +1197,18 @@ function dayDetail(k, list) {
   </section>`;
 }
 function sessCard(s) {
-  if (isFree(s)) return `<article class="card card--flat hand sess" style="${FX.hand(s.id, 0.4)}">
-    <div class="sess-head"><h3>${esc(s.name || 'Atividade')}</h3><span class="delta delta--sm" style="--c:var(--hl-b)">${s.minutes ? `${fmt(s.minutes)} min` : 'feito'}</span></div>
-    ${s.note ? `<p>${esc(s.note)}</p>` : ''}
-    <div class="sess-foot"><span class="t-note">outra atividade</span><button class="link link--danger" data-a="free-del" data-s="${s.id}">apagar</button></div>
+  if (isFree(s)) {
+    const d = s.details && s.details.tipo === 'bjj' ? s.details : null;
+    const golpes = d ? d.golpes || [] : [];
+    return `<article class="card card--flat hand sess${d ? ' sess--bjj' : ''}" style="${FX.hand(s.id, 0.4)}">
+    <div class="sess-head"><h3>${esc(s.name || 'Atividade')}</h3><span class="delta delta--sm" style="--c:var(--free)">${s.minutes ? `${fmt(s.minutes)} min` : 'feito'}</span></div>
+    ${d ? `<p class="bjj-kimono">${d.kimono === false ? 'sem kimono' : 'de kimono'}</p>
+    <div class="bjj-row"><span class="t-label">Rolas</span><span class="bjj-tally">${d.rolas ? tally(d.rolas, 0, s.startedAt % 97) : '<span class="t-muted">nenhum</span>'}</span>${d.rolas ? `<b>${d.rolas}</b>` : ''}</div>
+    ${golpes.length ? `<div class="bjj-row bjj-row--top"><span class="t-label">Encaixei</span><span class="bjj-golpes">${golpes.map(g => `<span class="hl" style="--c:var(--ok);${FX.hand(s.id + g, 0.3)}">${esc(g)}</span>`).join('')}</span></div>` : ''}` : ''}
+    ${s.note ? (d ? `<div class="bjj-learn"><span class="t-label">O que aprendi</span><p>${esc(s.note)}</p></div>` : `<p>${esc(s.note)}</p>`) : ''}
+    <div class="sess-foot"><span class="t-note">${d ? 'diário de jiu-jitsu' : 'outra atividade'}</span><button class="link link--danger" data-a="free-del" data-s="${s.id}">apagar</button></div>
   </article>`;
+  }
   const w = getW(s.wid), logs = sessLogs(s.id), cmp = w ? sessionCompare(w, s) : null;
   const doneN = new Set(logs.map(l => l.eid)).size;
   const meta = `às ${fmtTime(s.startedAt)} · ${w ? `${doneN} de ${w.exercises.length} exercícios` : plural(doneN, 'exercício', 'exercícios')}${s.closedAt ? '' : ' · em andamento'}`;
@@ -1140,7 +1218,7 @@ function sessCard(s) {
     <p class="t-note">${meta}</p>
     <ul class="sess-list">${latest.map(l => `<li><b>${esc(l.name || 'Exercício')}</b> <span>${esc(logSummary(l, true))}</span></li>`).join('')}</ul>
     ${s.below ? whyLine(s) : ''}
-    ${w ? `<div class="sess-foot"><span></span><button class="link" data-a="open-w" data-w="${w.id}">abrir o treino →</button></div>` : ''}
+    ${w ? `<div class="sess-foot"><span></span><button class="link link--fwd" data-a="open-w" data-w="${w.id}">abrir o treino${ICON.next.replace('<svg ', '<svg class="ic" ')}</button></div>` : ''}
   </article>`;
 }
 
@@ -1166,17 +1244,32 @@ function viewReason() {
     </div>
   </div>`;
 }
+function bjjForm() {
+  return `<section class="bjj" aria-label="Diário de jiu-jitsu">
+    <div class="tech-pick" role="radiogroup" aria-label="Kimono">
+      <button role="radio" aria-checked="${sheet.gi}" class="tp${sheet.gi ? ' on' : ''}" data-a="bjj-gi" data-v="1">de kimono</button>
+      <button role="radio" aria-checked="${!sheet.gi}" class="tp${sheet.gi ? '' : ' on'}" data-a="bjj-gi" data-v="0">sem kimono</button>
+    </div>
+    <div class="min-row"><span class="t-label">Rolas</span><span class="bjj-tally" aria-hidden="true">${sheet.rolas ? tally(sheet.rolas, 0, 7) : ''}</span>
+      <div class="stepper"><button class="btn-round" data-a="bjj-rolas" data-d="-1" aria-label="menos um rola">−</button><output>${sheet.rolas}</output><button class="btn-round" data-a="bjj-rolas" data-d="1" aria-label="mais um rola">+</button></div></div>
+    <div class="fgroup"><span class="t-label">Golpes que encaixei</span>
+      <div class="tags" role="group" aria-label="Golpes que encaixei">${BJJ_GOLPES.map(g => `<button class="tag" aria-pressed="${sheet.golpes.includes(g)}" data-a="bjj-golpe" data-v="${g}">${g}</button>`).join('')}</div>
+      <div class="field-wrap"><input id="fGolpe" class="field" data-in="bjj-extra" value="${esc(sheet.extra)}" placeholder="outro golpe (separa por vírgula)" autocomplete="off" maxlength="120" aria-label="Outro golpe">${PEN}</div></div>
+    <div class="fgroup"><label class="t-label" for="fLearn">O que aprendi hoje</label>
+      <textarea id="fLearn" class="lined" data-in="free-note" rows="4" maxlength="600" placeholder="a passagem toreando, o ajuste do triângulo…">${esc(sheet.note)}</textarea></div>
+  </section>`;
+}
 function viewFree() {
   return `<div class="backdrop" data-a="sheet-close">
-    <div class="card bsheet" role="dialog" aria-modal="true" aria-labelledby="fsT" data-a="noop">
+    <div class="card bsheet${sheet.shown ? ' bsheet--still' : ''}" role="dialog" aria-modal="true" aria-labelledby="fsT" data-a="noop">
       <h2 id="fsT">Anotar outra atividade</h2>
       <p class="t-muted">${sheet.day === dayKey() ? 'Hoje' : cap(fmtLong(dateOf(sheet.day)))}. Jiu-jitsu, corrida, futebol, o que for.</p>
       <div class="fgroup"><label class="t-label" for="fName">O que você fez?</label>
         <div class="field-wrap"><input id="fName" class="field field--display" data-in="free-name" value="${esc(sheet.name)}" placeholder="Corrida no parque" autocomplete="off" maxlength="60">${PEN}</div></div>
-      <div class="tags">${FREE_PICKS.map(n => `<button class="tag" data-a="free-pick" data-v="${n}">${n}</button>`).join('')}</div>
+      <div class="tags">${FREE_PICKS.map(n => `<button class="tag" data-a="free-pick" data-v="${n}" aria-pressed="${sheet.name === n}">${n}</button>`).join('')}</div>
       <div class="min-row"><span class="t-label">Quanto tempo</span><div class="stepper"><button class="btn-round" data-a="free-min" data-d="-5" aria-label="menos 5 minutos">−</button><output id="fMin">${sheet.minutes} min</output><button class="btn-round" data-a="free-min" data-d="5" aria-label="mais 5 minutos">+</button></div></div>
-      <div class="fgroup"><label class="t-label" for="fNote">Nota (opcional)</label>
-        <div class="field-wrap"><input id="fNote" class="field" data-in="free-note" value="${esc(sheet.note)}" placeholder="treino puxado, 5 rounds" autocomplete="off" maxlength="200">${PEN}</div></div>
+      ${isBJJ(sheet.name) ? bjjForm() : `<div class="fgroup"><label class="t-label" for="fNote">Nota (opcional)</label>
+        <div class="field-wrap"><input id="fNote" class="field" data-in="free-note" value="${esc(sheet.note)}" placeholder="treino puxado, 5 rounds" autocomplete="off" maxlength="200">${PEN}</div></div>`}
       <button class="btn btn--go btn--wide" data-a="free-save">Anotar no calendário</button>
       <button class="link" data-a="sheet-close">cancelar</button>
     </div>
@@ -1201,7 +1294,53 @@ function renderSheet() {
 /* =========================================================
    Render e navegação
    ========================================================= */
+/* tema: automático (segue o celular), claro ou escuro; vale pra conta e fica lembrado no aparelho pra abrir sem piscar */
+const THEME_COLOR = { light: '#172e6c', dark: '#0a1229' };
+function applyTheme() {
+  let t = 'auto';
+  if (S.user) t = S.settings.theme || 'auto';
+  else { try { t = localStorage.getItem('bloquinho:theme') || 'auto'; } catch (e) {} }
+  const root = document.documentElement;
+  if (t === 'light' || t === 'dark') root.dataset.theme = t; else delete root.dataset.theme;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => { m.content = THEME_COLOR[t] || (/dark/.test(m.media) ? THEME_COLOR.dark : THEME_COLOR.light); });
+  if (S.user) { try { localStorage.setItem('bloquinho:theme', t); } catch (e) {} }
+}
+/* deslizar o dedo: nas abas, da direita pra esquerda avança e da esquerda pra direita volta;
+   nas telas de dentro, puxar da beirada esquerda volta */
+let swipe = null;
+document.addEventListener('touchstart', ev => {
+  swipe = null;
+  if (ev.touches.length !== 1 || sheet || installOpen || (run && run.ask) || busy) return;
+  if (ev.target.closest && ev.target.closest('input, textarea, .table-wrap')) return;
+  const t = ev.touches[0];
+  swipe = { x: t.clientX, y: t.clientY, at: Date.now() };
+}, { passive: true });
+document.addEventListener('touchend', ev => {
+  if (!swipe) return;
+  const t = ev.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y, x0 = swipe.x, dt = Date.now() - swipe.at;
+  swipe = null;
+  if (dt > 700 || Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
+  const i = TABS.findIndex(([v]) => v === view.name);
+  if (i >= 0) {
+    const j = i + (dx < 0 ? 1 : -1);
+    if (j < 0 || j >= TABS.length) return;
+    const v = TABS[j][0];
+    if (v === 'home') ACT.home(); else go({ name: v });
+    return;
+  }
+  if (dx > 0 && x0 < 48) { const back = $('#app .link--back'); if (back) back.click(); }
+}, { passive: true });
+/* abas da caderneta nas telas principais */
+const TABS = [['home', 'Caderno', 'book'], ['calendar', 'Calendário', 'cal'], ['account', 'Conta', 'user']];
+/* rodapé de folha: cada aba é uma folha numerada da caderneta */
+const folio = v => `<footer class="folio" aria-hidden="true"><span>Bloquinho</span><span>folha ${TABS.findIndex(([k]) => k === v) + 1} de ${TABS.length}</span></footer>`;
+function renderTabs() {
+  const on = !!S.user && TABS.some(([v]) => v === view.name);
+  document.body.toggleAttribute('data-tabs', on);
+  $('#tabLayer').innerHTML = on ? `<nav class="tabbar" aria-label="Seções">${TABS.map(([v, label, ic]) => `<button class="tabb${view.name === v ? ' on' : ''}" data-a="tab" data-v="${v}"${view.name === v ? ' aria-current="page"' : ''}>${ICON[ic]}<span>${label}</span></button>`).join('')}</nav>` : '';
+}
 function render() {
+  applyTheme();
   let html;
   if (!S.user && view.name !== 'auth') view = { name: 'auth' };
   switch (view.name) {
@@ -1210,9 +1349,12 @@ function render() {
     case 'run': html = run ? viewRun() : (view = { name: 'home' }, viewHome()); break;
     case 'history': html = viewHistory(); break;
     case 'calendar': html = viewCalendar(); break;
+    case 'account': html = viewAccount(); break;
     default: html = viewHome();
   }
   $('#app').innerHTML = html;
+  document.body.dataset.view = view.name;
+  renderTabs();
   renderSheet();
   if (run) { run.animIdx = -1; run.slap = false; run.fresh = false; }
   if (view.name === 'run' && run && (run.phase === 'rest' || clockRun()) && !tickT) startTick();
@@ -1230,7 +1372,8 @@ document.addEventListener('focusout', () => setTimeout(() => { if (needRender &&
 /* re-renderiza sem perder o campo onde você tá */
 function renderKeepFocus() { setTimeout(() => { const id = document.activeElement && document.activeElement.id; render(); if (id) { const el = document.getElementById(id); if (el) el.focus(); } }, 0); }
 /* profundidade de cada tela: ir mais fundo vira a folha pra cima, voltar traz a folha de volta */
-const depthOf = v => v.name === 'home' || v.name === 'auth' ? 0 : v.name === 'calendar' ? 1 : v.name === 'workout' ? (v.edit ? 1.5 : 1) : 2;
+/* ordem das folhas: as abas (caderno, calendário, conta) e as telas de dentro; ir pra frente vira a folha, voltar traz de volta */
+const depthOf = v => ({ auth: 0, home: 0, calendar: 0.4, account: 0.8, workout: v.edit ? 1.5 : 1 })[v.name] ?? 2;
 function go(v) {
   const from = depthOf(view), to = depthOf(v);
   const apply = () => { view = v; armed = null; window.scrollTo(0, 0); render(); };
@@ -1402,6 +1545,12 @@ const ACT = {
   },
   'hide-how'(el) { erase(el.closest('.how'), { collapse: true }, () => { S.settings.hideHow = true; saveCaderno(); render(); }); },
   set(el) { const k = el.dataset.k; S.settings[k] = !S.settings[k]; saveCaderno(); render(); },
+  theme(el) { if (S.settings.theme === el.dataset.v) return; S.settings.theme = el.dataset.v; saveCaderno(); render(); },
+  tab(el) {
+    const v = el.dataset.v;
+    if (v === view.name) { window.scrollTo({ top: 0, behavior: FX.reduceMotion() ? 'auto' : 'smooth' }); return; }
+    if (v === 'home') ACT.home(); else go({ name: v });
+  },
   'open-w'(el) { go({ name: 'workout', wid: el.dataset.w }); },
   'new-w'() {
     const w = { id: newId(), name: '', exercises: [mkEx('')] };
@@ -1428,6 +1577,14 @@ const ACT = {
     const w = getW(view.wid), e = getE(view.wid, el.dataset.e), T = TECH[el.dataset.t];
     if (!e || e.tech === el.dataset.t) return;
     Object.assign(e, { tech: el.dataset.t, blocks: T.blocks, reps: T.reps || 4, rest: T.rest, goal: T.goal });
+    touchWorkout(w); saveCaderno(); render();
+  },
+  'ex-range'(el) {
+    const w = getW(view.wid), e = getE(view.wid, el.dataset.e); if (!e) return;
+    const on = el.dataset.v === '1';
+    if (on === e.goal > 0) return;
+    if (on) { e.reps = Math.max(2, e.reps); e.goal = clamp(e.reps - 4, 1, e.reps - 1); }
+    else e.goal = 0;
     touchWorkout(w); saveCaderno(); render();
   },
   'ex-up'(el) {
@@ -1626,10 +1783,19 @@ const ACT = {
     toast(s && (s.reasons.length || note) ? 'Motivo anotado. Bola pra frente.' : 'Sem motivo anotado.');
   },
   'sheet-close'() { sheet = null; renderSheet(); },
-  'free-open'(el) { sheet = { kind: 'free', day: el.dataset.d, name: '', minutes: 60, note: '' }; renderSheet(); },
+  'free-open'(el) { sheet = { kind: 'free', day: el.dataset.d, name: '', minutes: 60, note: '', gi: true, rolas: 0, golpes: [], extra: '' }; renderSheet(); sheet.shown = true; },
   'free-pick'(el) {
     sheet.name = el.dataset.v;
-    const i = $('#fName'); if (i) { i.value = sheet.name; FX.penFollow(i, true); }
+    if (isBJJ(sheet.name) && sheet.minutes === 60) sheet.minutes = 90;
+    renderSheet();
+    const i = $('#fName'); if (i) FX.penFollow(i, true);
+  },
+  'bjj-gi'(el) { sheet.gi = el.dataset.v === '1'; renderSheet(); },
+  'bjj-rolas'(el) { sheet.rolas = clamp(sheet.rolas + (+el.dataset.d), 0, 40); renderSheet(); },
+  'bjj-golpe'(el) {
+    const g = el.dataset.v;
+    sheet.golpes = sheet.golpes.includes(g) ? sheet.golpes.filter(x => x !== g) : [...sheet.golpes, g];
+    renderSheet();
   },
   'free-min'(el) {
     sheet.minutes = clamp(sheet.minutes + (+el.dataset.d), 5, 600);
@@ -1639,7 +1805,9 @@ const ACT = {
     const name = sheet.name.trim();
     if (!name) { toast('Escreve o que você fez.'); $('#fName')?.focus(); return; }
     const at = sheet.day === dayKey() ? Date.now() : dateOf(sheet.day).getTime();
-    S.sessions.push({ id: newId(), kind: 'free', wid: null, name, startedAt: at, closedAt: at, minutes: sheet.minutes, note: sheet.note.trim() || null });
+    const golpes = [...new Set([...sheet.golpes, ...sheet.extra.split(',').map(x => x.trim()).filter(Boolean)])];
+    const details = isBJJ(name) ? { tipo: 'bjj', kimono: !!sheet.gi, rolas: sheet.rolas, golpes } : null;
+    S.sessions.push({ id: newId(), kind: 'free', wid: null, name, startedAt: at, closedAt: at, minutes: sheet.minutes, note: sheet.note.trim() || null, details });
     sheet = null; saveCaderno(); render(); toast('Anotado no calendário.');
   },
   'free-del'(el) {
@@ -1659,13 +1827,23 @@ const INP = {
   'a-pass'(el) { auth.pass = el.value; },
   'reason-note'(el) { if (sheet) sheet.note = el.value; },
   'free-name'(el) { if (sheet) sheet.name = el.value; },
-  'free-note'(el) { if (sheet) sheet.note = el.value; }
+  'free-note'(el) { if (sheet) sheet.note = el.value; },
+  'bjj-extra'(el) { if (sheet) sheet.extra = el.value; }
 };
 const CHG = {
+  /* escreveu "jiu-jitsu" à mão: a ficha de jiu-jitsu aparece */
+  'free-name'(el) { if (sheet && isBJJ(el.value) !== !!$('.bjj')) { sheet.name = el.value; renderSheet(); } },
   'ex-num'(el) {
     const w = getW(view.wid), e = getE(view.wid, el.dataset.e), k = el.dataset.k; if (!e) return;
     const v = parseInt(el.value, 10);
     e[k] = clamp(Number.isFinite(v) ? v : e[k], LIMITS[k][0], LIMITS[k][1]);
+    // na faixa, o mínimo fica sempre abaixo do máximo
+    if (techOf(e).mode === 'sets' && e.goal > 0 && (k === 'goal' || k === 'reps') && e.goal >= e.reps) {
+      if (k === 'goal') e.goal = Math.max(1, e.reps - 1); else e.reps = Math.min(LIMITS.reps[1], e.goal + 1);
+      const other = document.getElementById(`n-${k === 'goal' ? 'reps' : 'goal'}-${e.id}`);
+      if (other) other.value = k === 'goal' ? e.reps : e.goal;
+      if (k === 'goal' && e.goal >= e.reps) e.goal = e.reps - 1;
+    }
     el.value = e[k]; touchWorkout(w); saveCaderno();
   },
   'set-load'() { renderKeepFocus(); },

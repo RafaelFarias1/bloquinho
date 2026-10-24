@@ -1,5 +1,5 @@
-/* Bloquinho: animações de caderno.
-   O lápis desenha, a borracha apaga, o carimbo bate, o post-it descola e a folha vira.
+/* Bloquinho: animações da caderneta.
+   O lápis desenha, a borracha apaga, o carimbo bate, o post-it descola e a folha vira na lombada.
    Com "reduzir movimento" ligado no aparelho, nada anima. */
 (() => {
 'use strict';
@@ -41,7 +41,7 @@ function teacherStamp(extra = '') {
     + '<circle cx="60" cy="60" r="56" fill="none" stroke="currentColor" stroke-width="4"/>'
     + '<circle cx="60" cy="60" r="34" fill="none" stroke="currentColor" stroke-width="2"/>'
     + `<text class="teacher-txt"><textPath href="#${id}" textLength="266" lengthAdjust="spacing">MUITO BEM! • MUITO BEM! •</textPath></text>`
-    + '<path d="M60 34L66.5 51.1L84.7 52L70.5 63.4L75.3 81L60 71L44.7 81L49.5 63.4L35.3 52L53.5 51.1Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>'
+    + '<path class="teacher-star" d="M60 34L66.5 51.1L84.7 52L70.5 63.4L75.3 81L60 71L44.7 81L49.5 63.4L35.3 52L53.5 51.1Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>'
     + '<circle cx="55" cy="57" r="2.1" class="teacher-face"/><circle cx="65" cy="57" r="2.1" class="teacher-face"/>'
     + '<path d="M54 63.5q6 5 12 0" fill="none" class="teacher-smile"/></g></svg>';
 }
@@ -194,20 +194,22 @@ function peelOff(el) {
 
 /* ---------- folha virando ao trocar de tela ---------- */
 function flipPage(apply, dir) {
-  if (!document.startViewTransition || reduceMotion() || !dir) { apply(); return; }
+  if (!document.startViewTransition || reduceMotion() || !dir || document.visibilityState === 'hidden') { apply(); return; }
   const root = document.documentElement;
   root.dataset.nav = dir;
-  const done = () => { delete root.dataset.nav; };
+  let applied = false;
+  const once = () => { if (!applied) { applied = true; apply(); } };
+  const done = () => { delete root.dataset.nav; once(); };
   try {
-    const t = document.startViewTransition(apply);
-    // tocar rápido entre telas pula a virada; a tela muda do mesmo jeito
+    const t = document.startViewTransition(once);
+    // tocar rápido entre telas (ou a virada ser pulada) não pode deixar a tela parada: ela muda do mesmo jeito
     t.ready.catch(() => {});
-    t.updateCallbackDone.catch(() => {});
+    t.updateCallbackDone.catch(once);
     t.finished.then(done, done);
-  } catch (e) { done(); apply(); }
+  } catch (e) { done(); }
 }
 
-/* ---------- feito à mão: cada coisa tem o próprio formato, sempre o mesmo pra mesma coisa ---------- */
+/* ---------- carimbo torto: sorteado a partir do id ---------- */
 function seeded(key) {
   let h = 2166136261;
   for (const c of String(key)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
@@ -219,35 +221,15 @@ function seeded(key) {
   };
 }
 const between = (r, a, b) => a + (b - a) * r();
-function handRadius(r) {
-  const B = () => Math.round(between(r, 110, 260)), s = () => Math.round(between(r, 7, 24));
-  return r() < 0.5
-    ? `${B()}px ${s()}px ${B()}px ${s()}px/${s()}px ${B()}px ${s()}px ${B()}px`
-    : `${s()}px ${B()}px ${s()}px ${B()}px/${B()}px ${s()}px ${B()}px ${s()}px`;
-}
-/* k = quanto varia: 1 pro cartão de treino, menos pros quadradinhos pequenos */
+/* carimbo: cada coisa carimbada cai torta do seu jeito, sempre do mesmo jeito pra mesma coisa.
+   k = quanto varia: 1 nos carimbos de data, menos nos pequenos */
 function hand(key, k = 1) {
   const r = seeded(key);
-  const rot = (r() < 0.5 ? -1 : 1) * between(r, 0.5, 2.3) * k;
-  return `--hr:${handRadius(r)};--hrot:${rot.toFixed(2)}deg;--hx:${(between(r, -6, 6) * k).toFixed(1)}px;`
-    + `--hsx:${between(r, 2, 4.5).toFixed(1)}px;--hsy:${between(r, 2.5, 5.5).toFixed(1)}px`;
+  const rot = (r() < 0.5 ? -1 : 1) * between(r, 3, 11) * k;
+  return `--hrot:${rot.toFixed(1)}deg;--hx:${(between(r, -2.5, 2.5) * k).toFixed(1)}px;--stamp-a:${between(r, 0.64, 0.94).toFixed(2)}`;
 }
-/* fita adesiva: no meio, num canto ou nos dois, com as pontas rasgadas */
-function tapes(key) {
-  const r = seeded(`${key}:fita`);
-  const torn = () => {
-    const L = [], R = [];
-    for (let i = 0; i <= 5; i++) { const y = i * 20; L.push(`${(r() * 7).toFixed(1)}% ${y}%`); R.push(`${(100 - r() * 7).toFixed(1)}% ${y}%`); }
-    return `polygon(${L.join(',')},${R.reverse().join(',')})`;
-  };
-  const one = (x, rot) => `<span class="tape" aria-hidden="true" style="--tx:${x.toFixed(1)}%;--trot:${rot.toFixed(1)}deg;`
-    + `--tw:${Math.round(between(r, 64, 100))}px;--th:${Math.round(between(r, 20, 27))}px;--to:${between(r, 0.7, 1).toFixed(2)};--tclip:${torn()}"></span>`;
-  const kind = Math.floor(r() * 4);
-  if (kind === 0) return one(between(r, 30, 70), between(r, -8, 8));
-  if (kind === 1) return one(between(r, 5, 12), between(r, -42, -28));
-  if (kind === 2) return one(between(r, 88, 94), between(r, 28, 42));
-  return one(between(r, 5, 10), between(r, -40, -30)) + one(between(r, 90, 95), between(r, 30, 40));
-}
+/* a caderneta não leva fita adesiva */
+function tapes() { return ''; }
 
 /* reinicia uma animação de CSS */
 function replay(el, cls) {

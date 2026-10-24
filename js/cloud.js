@@ -108,14 +108,17 @@ const ROW = {
   exercises: e => ({ id: e.id, workout_id: e.workout_id, name: e.name || '', tech: e.tech, blocks: int(e.blocks, 1), reps: int(e.reps), rest: int(e.rest), goal: int(e.goal), position: int(e.position) }),
   sessions: s => ({ id: s.id, kind: s.kind === 'free' ? 'free' : 'workout', workout_id: s.wid ?? null, name: s.name ?? null,
     started_at: iso(s.startedAt), closed_at: iso(s.closedAt), minutes: num(s.minutes), note: s.note || null,
-    below: !!s.below, below_reasons: Array.isArray(s.reasons) ? [...s.reasons] : [], below_note: s.reasonNote || null }),
+    below: !!s.below, below_reasons: Array.isArray(s.reasons) ? [...s.reasons] : [],
+    // atividade avulsa não usa o motivo da queda: ali vai a ficha dela (jiu-jitsu: kimono, rolas, golpes) em JSON
+    below_note: s.kind === 'free' ? (s.details ? stable(s.details) : null) : s.reasonNote || null }),
   exercise_logs: l => ({ id: l.id, session_id: l.sid, workout_id: l.wid ?? null, exercise_id: l.eid ?? null, done_at: iso(l.ts),
     day: l.day || dayOf(l.ts), name: l.name ?? null, tech: l.tech, cfg: l.cfg || {}, load: num(l.load),
     loads: Array.isArray(l.loads) ? l.loads.map(num) : null, reps: (l.reps || []).map(r => int(r)), total: num(l.total) ?? 0,
     km: num(l.km), verdict: l.verdict || null, fail_block: l.failBlock ?? null, next_load: num(l.next) })
 };
+const details = r => { if (r.kind !== 'free' || !r.below_note || r.below_note[0] !== '{') return null; try { return JSON.parse(r.below_note); } catch (e) { return null; } };
 const sessionApp = r => ({ id: r.id, kind: r.kind, wid: r.workout_id, name: r.name, startedAt: ms(r.started_at), closedAt: ms(r.closed_at),
-  minutes: num(r.minutes), note: r.note, below: !!r.below, reasons: r.below_reasons || [], reasonNote: r.below_note });
+  minutes: num(r.minutes), note: r.note, below: !!r.below, reasons: r.below_reasons || [], reasonNote: r.kind === 'free' ? null : r.below_note, details: details(r) });
 const logApp = r => ({ id: r.id, sid: r.session_id, wid: r.workout_id, eid: r.exercise_id, ts: ms(r.done_at), day: r.day, name: r.name,
   tech: r.tech, cfg: r.cfg || {}, load: num(r.load), loads: Array.isArray(r.loads) ? r.loads.map(num) : null, reps: r.reps || [],
   total: num(r.total) ?? 0, km: num(r.km), verdict: r.verdict, failBlock: r.fail_block, next: num(r.next_load) });
